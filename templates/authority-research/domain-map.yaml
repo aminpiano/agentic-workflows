@@ -1,0 +1,55 @@
+version: authority_research_domain_map_v0_1
+topic: "Replace with the research topic"
+defaults:
+  language: "English"
+  source_policy:
+    prefer:
+      - official documentation
+      - primary sources
+      - standards bodies
+      - regulator publications
+      - peer-reviewed papers
+    avoid:
+      - unsourced summaries
+      - copied SEO pages
+      - anonymous claims without evidence
+axes:
+  - id: "official-sources"
+    label: "Official sources"
+    priority: critical
+    questions:
+      - "Which official sources define the topic?"
+      - "What terminology do they use?"
+    source_families:
+      - "official websites"
+      - "documentation"
+      - "policy pages"
+    required_outputs:
+      - "inventory"
+      - "profiles"
+  - id: "market-and-practice"
+    label: "Market and practice"
+    priority: medium
+    questions:
+      - "How do practitioners describe the problem?"
+      - "Which vendors or tools appear repeatedly?"
+    source_families:
+      - "product docs"
+      - "case studies"
+      - "technical blogs"
+    required_outputs:
+      - "inventory"
+      - "profiles"
+  - id: "controversies-and-failures"
+    label: "Controversies and failures"
+    priority: high
+    questions:
+      - "What claims are disputed?"
+      - "Where do systems fail in practice?"
+    source_families:
+      - "issue trackers"
+      - "incident reports"
+      - "critical reviews"
+    required_outputs:
+      - "inventory"
+      - "profiles"

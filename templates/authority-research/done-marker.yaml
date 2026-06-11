@@ -1,0 +1,11 @@
+task_id: "001"
+phase: "source-scout"
+status: done
+worker: "agent-name"
+started_at: "2026-01-01T00:00:00Z"
+completed_at: "2026-01-01T00:00:00Z"
+inputs:
+  - "schedule/work-schedule.yaml#001"
+outputs:
+  - "inventory/001-sources.yaml"
+notes: "Short completion note. No raw source dumps."
