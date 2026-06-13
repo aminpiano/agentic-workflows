@@ -41,8 +41,15 @@ Create the native source index:
 
 ```bash
 python3 scripts/ai-project-docs/repo_index.py . \
-  --out-dir ai-docs/.work/<run-id>/source-index
+  --out-dir ai-docs/.work/<run-id>/source-index \
+  --profile code-first
 ```
+
+`code-first` is the default profile. It prioritizes code/config/API/schema and avoids task
+explosion by excluding or deferring history-heavy material such as `context/`, old `ai-docs`,
+lockfiles, hidden agent state, and oversized markdown reference docs. Use `.ai-docsignore` for
+project-specific excludes, or `--profile history-aware` when project knowledge genuinely lives in
+notes/history.
 
 Collect repository-declared operational facts:
 
@@ -53,12 +60,18 @@ python3 scripts/ai-project-docs/ops_inventory.py . \
   --done-out ai-docs/.work/<run-id>/done/ops-inventory-001.done.json
 ```
 
+Markdown operations docs are excluded by default because prose often creates false port/domain
+matches. Add `--include-ops-docs` only when those docs are needed as operations evidence.
+
 Create slots and source-scout tasks:
 
 ```bash
 python3 scripts/ai-project-docs/make_v2_schedule.py \
   ai-docs/.work/<run-id>/source-index/index-final.json
 ```
+
+The scheduler writes `planning/deferred-sources.json` for skipped or over-budget files. Deferred
+sources are not deleted; they are postponed until a coverage gap requires them.
 
 Generate worker prompts:
 
@@ -92,6 +105,9 @@ python3 scripts/ai-project-docs/make_dashboard.py ai-docs/.work/<run-id> --proje
 python3 scripts/ai-project-docs/check_docs.py .
 python3 scripts/ai-project-docs/validate_v2_run.py ai-docs/.work/<run-id> --json
 ```
+
+Inspect `logs/dashboard.json` before spawning workers. It reports noisy directories, deferred
+source counts, ignored reasons, and task-size warnings.
 
 For the complete v2 workflow, read:
 

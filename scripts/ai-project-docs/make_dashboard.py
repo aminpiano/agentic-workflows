@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections import Counter
 from pathlib import Path
 
 
@@ -52,6 +53,7 @@ def main() -> int:
     ops_inventory = load_json(run_dir / "ops-inventory" / "ops-inventory.json") or {}
     schedule = load_json(run_dir / "planning" / "schedule.json") or {}
     slots = load_json(run_dir / "planning" / "doc-slots.json") or {}
+    deferred = load_json(run_dir / "planning" / "deferred-sources.json") or {}
     merge_report = load_json(run_dir / "logs" / "packet-merge-report.json") or {}
     state = load_json(run_dir / "synthesis" / "docs" / "ai-docs-state.json") or {}
     applied_state = {}
@@ -78,6 +80,9 @@ def main() -> int:
     if schedule and packet_count < schedule.get("task_count", 0):
         status = "incomplete"
         next_actions.append("Complete missing worker packets or run merge_packets.py with --allow-missing for a partial test.")
+    if schedule.get("task_count", 0) > 48:
+        status = "warn" if status == "pass" else status
+        next_actions.append("Review schedule size; consider repo_index.py --profile code-first, .ai-docsignore, or lower slot task limits.")
     if merge_report.get("status") == "fail":
         status = "fail"
         next_actions.append("Fix packet merge errors before synthesis.")
@@ -93,16 +98,49 @@ def main() -> int:
     elif not next_actions:
         next_actions.append("Review staged docs, then run synthesize_docs.py --apply if acceptable.")
 
+    files = index.get("files", {})
+    top_dirs = Counter(path.split("/", 1)[0] for path in files)
+    deferred_reasons = Counter(item.get("reason", "unknown") for item in deferred.get("sources", []))
+    ignored_reasons = Counter(item.get("ignore_reason", "unknown") for item in index.get("ignored", []))
+    noisy_dirs = [
+        {"path": path, "indexed_files": count}
+        for path, count in top_dirs.most_common(10)
+        if count >= 25
+    ]
+    warnings = []
+    if schedule.get("task_count", 0) > 48:
+        warnings.append(
+            {
+                "kind": "task_explosion",
+                "message": "Source-scout schedule is large for a default run.",
+                "tasks": schedule.get("task_count", 0),
+            }
+        )
+    if noisy_dirs:
+        warnings.append(
+            {
+                "kind": "high_noise_dirs",
+                "message": "Large indexed directories may need profile tuning or .ai-docsignore.",
+                "dirs": noisy_dirs[:5],
+            }
+        )
+
     dashboard = {
         "status": status,
         "run_dir": str(run_dir),
         "source_index": {
             "present": bool(index),
             "stats": index.get("stats", {}),
+            "profile": index.get("profile"),
+            "ignored_reasons": dict(ignored_reasons.most_common(12)),
+            "top_dirs": [{"path": path, "indexed_files": count} for path, count in top_dirs.most_common(12)],
         },
         "planning": {
             "slots": len(slots.get("slots", [])),
             "tasks": schedule.get("task_count", 0),
+            "profile": schedule.get("profile"),
+            "deferred_sources": len(deferred.get("sources", [])),
+            "deferred_reasons": dict(deferred_reasons.most_common(12)),
         },
         "ops_inventory": {
             "present": bool(ops_inventory),
@@ -121,6 +159,7 @@ def main() -> int:
             "evidence_records": len(state.get("evidence", [])),
             "applied": applied,
         },
+        "warnings": warnings,
         "next_actions": next_actions,
     }
     (logs_dir / "dashboard.json").write_text(

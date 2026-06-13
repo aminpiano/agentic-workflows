@@ -135,7 +135,8 @@ For AI project documentation:
 ```bash
 RUN_DIR=$(python3 scripts/ai-project-docs/init_v2_run.py . | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_dir"])')
 python3 scripts/ai-project-docs/repo_index.py . \
-  --out-dir "$RUN_DIR/source-index"
+  --out-dir "$RUN_DIR/source-index" \
+  --profile code-first
 python3 scripts/ai-project-docs/make_v2_schedule.py \
   "$RUN_DIR/source-index/index-final.json"
 ```

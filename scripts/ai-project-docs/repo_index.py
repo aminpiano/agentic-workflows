@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import fnmatch
 import hashlib
 import json
 import os
@@ -35,6 +36,77 @@ DEFAULT_EXCLUDED_DIRS = {
     "venv",
     "__pycache__",
     "vendor",
+}
+
+PROFILE_EXCLUDED_TOP_DIRS = {
+    "code-first": {
+        ".claude",
+        ".cass",
+        ".codex",
+        ".cursor",
+        ".github/copilot",
+        "ai-docs-old",
+        "ai_docs_old",
+        "context",
+        "contexts",
+        "logs",
+    },
+    "history-aware": {
+        ".claude",
+        ".cass",
+        ".codex",
+        ".cursor",
+        ".github/copilot",
+    },
+    "ops-heavy": {
+        ".claude",
+        ".cass",
+        ".codex",
+        ".cursor",
+        ".github/copilot",
+        "ai-docs-old",
+        "ai_docs_old",
+        "context",
+        "contexts",
+        "logs",
+    },
+}
+
+DEFAULT_LOCKFILES = {
+    "bun.lock",
+    "bun.lockb",
+    "cargo.lock",
+    "composer.lock",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "poetry.lock",
+    "uv.lock",
+    "yarn.lock",
+}
+
+EXISTING_AI_DOCS_KEEP = {
+    "ai-docs/ai-project.yaml",
+    "ai-docs/README.md",
+}
+
+CODE_LANGS = {
+    "python",
+    "javascript",
+    "javascript-react",
+    "typescript",
+    "typescript-react",
+    "go",
+    "rust",
+    "java",
+    "kotlin",
+    "ruby",
+    "php",
+    "csharp",
+    "c",
+    "c-header",
+    "cpp",
+    "cpp-header",
+    "swift",
 }
 
 LANG_BY_EXT = {
@@ -176,12 +248,37 @@ def guess_role(path: str, language: str) -> str:
         return "api"
     if "/test" in lower or ".test." in name or "_test." in name or ".spec." in name:
         return "test"
+    if language in CODE_LANGS and lower.startswith(("backend/", "frontend/", "frontend-admin/", "src/", "app/", "lib/")):
+        return "source"
+    if language in CODE_LANGS and any(part in Path(lower).parts for part in {"services", "models", "components", "pages", "hooks"}):
+        return "source"
     if "/src/" in lower or "/app/" in lower or "/internal/" in lower:
         return "source"
     return "support"
 
 
-def make_record(root: Path, rel_path: str, max_bytes: int) -> dict:
+def ignore_record(root: Path, rel_path: str, reason: str) -> dict:
+    abs_path = root / rel_path
+    try:
+        stat = abs_path.stat()
+        bytes_value = stat.st_size
+    except OSError:
+        bytes_value = None
+    language = language_for(rel_path)
+    return {
+        "path": rel_path,
+        "bytes": bytes_value,
+        "language": language,
+        "role_guess": guess_role(rel_path, language),
+        "ignored": True,
+        "ignore_reason": reason,
+        "lines": None,
+        "sha256": None,
+        "token_estimate": None,
+    }
+
+
+def make_record(root: Path, rel_path: str, max_bytes: int, max_doc_bytes: int) -> dict:
     abs_path = root / rel_path
     stat = abs_path.stat()
     language = language_for(rel_path)
@@ -198,6 +295,15 @@ def make_record(root: Path, rel_path: str, max_bytes: int) -> dict:
             **base,
             "ignored": True,
             "ignore_reason": "secret_candidate",
+            "lines": None,
+            "sha256": None,
+            "token_estimate": None,
+        }
+    if language in {"markdown", "mdx"} and stat.st_size > max_doc_bytes:
+        return {
+            **base,
+            "ignored": True,
+            "ignore_reason": f"large_doc_gt_{max_doc_bytes}",
             "lines": None,
             "sha256": None,
             "token_estimate": None,
@@ -227,6 +333,54 @@ def make_record(root: Path, rel_path: str, max_bytes: int) -> dict:
         "sha256": hashlib.sha256(data).hexdigest(),
         "token_estimate": max(1, len(data) // 4),
     }
+
+
+def load_ai_docsignore(root: Path) -> list[str]:
+    path = root / ".ai-docsignore"
+    if not path.exists():
+        return []
+    patterns = []
+    for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        patterns.append(line)
+    return patterns
+
+
+def matches_pattern(rel_path: str, pattern: str) -> bool:
+    normalized = rel_path.strip("/")
+    pat = pattern.strip("/")
+    if pattern.endswith("/"):
+        return normalized == pat or normalized.startswith(pat + "/")
+    return fnmatch.fnmatch(normalized, pat) or fnmatch.fnmatch(Path(normalized).name, pat)
+
+
+def profile_ignore_reason(
+    rel_path: str,
+    profile: str,
+    ignore_patterns: list[str],
+    include_history: bool,
+    include_existing_ai_docs: bool,
+    include_lockfiles: bool,
+) -> str | None:
+    normalized = rel_path.strip("/")
+    parts = Path(normalized).parts
+    name = Path(normalized).name.lower()
+    for pattern in ignore_patterns:
+        if matches_pattern(normalized, pattern):
+            return "ai_docsignore"
+    if not include_lockfiles and name in DEFAULT_LOCKFILES:
+        return "lockfile"
+    if not include_history:
+        for excluded in PROFILE_EXCLUDED_TOP_DIRS.get(profile, set()):
+            if normalized == excluded or normalized.startswith(excluded + "/"):
+                return f"profile_excluded:{excluded}"
+    if not include_existing_ai_docs and normalized.startswith("ai-docs/") and normalized not in EXISTING_AI_DOCS_KEEP:
+        return "existing_ai_docs"
+    if len(parts) >= 2 and parts[0].lower() in {"docs", "seogo"} and parts[1].lower() in {"archive", "archives", "old"}:
+        return "archive_docs"
+    return None
 
 
 def is_internal_ai_docs_work(rel_path: str) -> bool:
@@ -281,11 +435,20 @@ def write_pack_xml(path: Path, root: Path, records: list[dict]) -> None:
     path.write_text("\n".join(parts), encoding="utf-8")
 
 
-def build_index(root: Path, max_bytes: int) -> dict:
+def build_index(
+    root: Path,
+    max_bytes: int,
+    max_doc_bytes: int,
+    profile: str,
+    include_history: bool,
+    include_existing_ai_docs: bool,
+    include_lockfiles: bool,
+) -> dict:
     file_list = run_git_files(root)
     source = "git-ls-files" if file_list is not None else "os-walk"
     if file_list is None:
         file_list = walk_files(root)
+    ignore_patterns = load_ai_docsignore(root)
     records: list[dict] = []
     for rel in sorted(dict.fromkeys(file_list)):
         abs_path = root / rel
@@ -295,8 +458,19 @@ def build_index(root: Path, max_bytes: int) -> dict:
             continue
         if any(part in DEFAULT_EXCLUDED_DIRS for part in Path(rel).parts):
             continue
+        ignore_reason = profile_ignore_reason(
+            rel,
+            profile,
+            ignore_patterns,
+            include_history,
+            include_existing_ai_docs,
+            include_lockfiles,
+        )
+        if ignore_reason:
+            records.append(ignore_record(root, rel, ignore_reason))
+            continue
         try:
-            records.append(make_record(root, rel, max_bytes))
+            records.append(make_record(root, rel, max_bytes, max_doc_bytes))
         except OSError as exc:
             records.append(
                 {
@@ -329,7 +503,10 @@ def build_index(root: Path, max_bytes: int) -> dict:
         "generated_at": now_iso(),
         "root": str(root),
         "source": source,
+        "profile": profile,
         "max_bytes": max_bytes,
+        "max_doc_bytes": max_doc_bytes,
+        "ignore_patterns": ignore_patterns,
         "stats": stats,
         "files": {r["path"]: r for r in indexed},
         "ignored": ignored,
@@ -341,6 +518,11 @@ def main() -> int:
     parser.add_argument("project_root", nargs="?", default=".")
     parser.add_argument("--out-dir", help="Output directory. Defaults to ai-docs/.work/<timestamp>/source-index")
     parser.add_argument("--max-bytes", type=int, default=DEFAULT_MAX_BYTES)
+    parser.add_argument("--max-doc-bytes", type=int, default=120_000)
+    parser.add_argument("--profile", choices=["code-first", "history-aware", "ops-heavy"], default="code-first")
+    parser.add_argument("--include-history", action="store_true", help="Include context/history directories excluded by the selected profile")
+    parser.add_argument("--include-existing-ai-docs", action="store_true", help="Include existing ai-docs markdown as source material")
+    parser.add_argument("--include-lockfiles", action="store_true", help="Include package/dependency lockfiles")
     parser.add_argument("--pack-xml", action="store_true", help="Also write pack.xml for LLM packet export")
     args = parser.parse_args()
 
@@ -355,7 +537,15 @@ def main() -> int:
         out_dir = root / "ai-docs" / ".work" / run_id / "source-index"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    index = build_index(root, args.max_bytes)
+    index = build_index(
+        root,
+        args.max_bytes,
+        args.max_doc_bytes,
+        args.profile,
+        args.include_history,
+        args.include_existing_ai_docs,
+        args.include_lockfiles,
+    )
     records = list(index["files"].values()) + index["ignored"]
 
     (out_dir / "index-final.json").write_text(

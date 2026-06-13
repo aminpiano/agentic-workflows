@@ -22,6 +22,60 @@ SECRET_VALUE_RE = re.compile(
 ENV_LINE_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=")
 PORT_RE = re.compile(r"(?m)(?:^|\s|['\"])(\d{2,5})\s*:\s*(\d{2,5})(?:/tcp|/udp)?")
 URL_HOST_RE = re.compile(r"\b(?:https?://)?([a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(?::\d{2,5})?\b")
+FILELIKE_DOMAIN_SUFFIXES = (
+    ".conf",
+    ".crt",
+    ".db",
+    ".exe",
+    ".bat",
+    ".git",
+    ".js",
+    ".json",
+    ".key",
+    ".log",
+    ".md",
+    ".pem",
+    ".py",
+    ".service",
+    ".sh",
+    ".so",
+    ".target",
+    ".ts",
+    ".tsx",
+    ".txt",
+    ".yaml",
+    ".yml",
+)
+DOMAIN_TLD_BLOCKLIST = {
+    "bat",
+    "conf",
+    "crt",
+    "db",
+    "exe",
+    "exports",
+    "git",
+    "head",
+    "html",
+    "js",
+    "json",
+    "key",
+    "log",
+    "md",
+    "origin",
+    "pem",
+    "platform",
+    "py",
+    "service",
+    "sh",
+    "so",
+    "target",
+    "ts",
+    "tsx",
+    "txt",
+    "yaml",
+    "yml",
+}
+PLACEHOLDER_HOSTS = {"your-server.com", "example.com", "example.org", "example.net"}
 
 OPS_PATTERNS = (
     "docker-compose",
@@ -87,8 +141,14 @@ def walk_files(root: Path) -> list[str]:
     return sorted(result)
 
 
-def is_ops_candidate(path: str) -> bool:
+def is_markdown(path: str) -> bool:
+    return Path(path.lower()).suffix in {".md", ".mdx"}
+
+
+def is_ops_candidate(path: str, include_ops_docs: bool = False) -> bool:
     lower = path.lower()
+    if is_markdown(path) and not include_ops_docs:
+        return False
     return any(pattern in lower for pattern in OPS_PATTERNS)
 
 
@@ -104,6 +164,8 @@ def redact(text: str) -> str:
 def classify_file(path: str) -> str:
     lower = path.lower()
     name = Path(lower).name
+    if is_markdown(path):
+        return "ops-doc"
     if "docker-compose" in lower or "compose." in lower:
         return "docker-compose"
     if name == "dockerfile" or name.endswith(".dockerfile"):
@@ -143,7 +205,16 @@ def extract_env_keys(text: str) -> list[str]:
 
 
 def extract_ports(text: str) -> list[str]:
-    ports = [f"{left}:{right}" for left, right in PORT_RE.findall(text)]
+    ports = []
+    for left, right in PORT_RE.findall(text):
+        left_int = int(left)
+        right_int = int(right)
+        if left_int > 65535 or right_int > 65535:
+            continue
+        # Avoid treating clock-like prose such as 12:00 as a port mapping.
+        if right_int == 0 and left_int <= 24:
+            continue
+        ports.append(f"{left}:{right}")
     return sorted(set(ports))
 
 
@@ -151,10 +222,32 @@ def extract_domains(text: str) -> list[str]:
     domains = []
     for host in URL_HOST_RE.findall(text):
         lowered = host.lower()
-        if lowered.endswith((".local", ".example")):
+        if ".." in lowered:
+            continue
+        if lowered in PLACEHOLDER_HOSTS or lowered.endswith((".local", ".example")):
+            continue
+        tld = lowered.rsplit(".", 1)[-1]
+        if tld in DOMAIN_TLD_BLOCKLIST:
+            continue
+        if lowered.endswith(FILELIKE_DOMAIN_SUFFIXES):
+            continue
+        if lowered.count(".") == 1 and lowered.rsplit(".", 1)[1] in {"js", "ts", "py", "md", "log", "json", "yaml", "yml"}:
             continue
         domains.append(lowered)
     return sorted(set(domains))
+
+
+def should_extract_network_hints(kind: str) -> bool:
+    return kind in {
+        "docker-compose",
+        "nginx",
+        "traefik",
+        "caddy",
+        "ci-workflow",
+        "env-file",
+        "deploy-infra",
+        "ops",
+    }
 
 
 def inspect_ops_file(root: Path, rel_path: str) -> dict:
@@ -172,6 +265,7 @@ def inspect_ops_file(root: Path, rel_path: str) -> dict:
         )
     else:
         anchor, anchor_line = first_anchor(text, rel_path)
+    network_hints = should_extract_network_hints(kind)
     return {
         "path": rel_path,
         "kind": kind,
@@ -181,8 +275,8 @@ def inspect_ops_file(root: Path, rel_path: str) -> dict:
         "anchor": anchor,
         "anchor_line": anchor_line,
         "env_keys": env_keys,
-        "ports": extract_ports(text),
-        "domains": extract_domains(text),
+        "ports": extract_ports(text) if network_hints else [],
+        "domains": extract_domains(text) if network_hints else [],
     }
 
 
@@ -317,6 +411,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("project_root", nargs="?", default=".")
     parser.add_argument("--out-dir", help="Defaults to ai-docs/.work/<timestamp>/ops-inventory")
+    parser.add_argument("--include-ops-docs", action="store_true", help="Also scan markdown docs whose paths look operations-related")
     parser.add_argument("--host-readonly", action="store_true", help="Run limited host read-only probes. No sudo, no writes.")
     parser.add_argument("--packet-out", help="Write a runtime_ops packet JSON to this path")
     parser.add_argument("--done-out", help="Write a done marker JSON to this path")
@@ -336,7 +431,7 @@ def main() -> int:
         if rel_path.startswith("ai-docs/.work/"):
             continue
         path = root / rel_path
-        if path.is_file() and is_ops_candidate(rel_path):
+        if path.is_file() and is_ops_candidate(rel_path, include_ops_docs=args.include_ops_docs):
             try:
                 repo_ops.append(inspect_ops_file(root, rel_path))
             except OSError:

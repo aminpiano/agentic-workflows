@@ -28,7 +28,10 @@ outputs:
   "generated_at": "ISO-8601",
   "root": "/abs/project",
   "source": "git-ls-files",
+  "profile": "code-first",
   "max_bytes": 1048576,
+  "max_doc_bytes": 120000,
+  "ignore_patterns": [],
   "stats": {
     "total_files": 0,
     "indexed_files": 0,
@@ -106,7 +109,9 @@ When `--host-readonly` is used, `host_readonly.commands[]` stores command names,
       "output_doc": "architecture/overview.md",
       "evidence_policy": "strict",
       "description": "Entrypoints, module boundaries, and data/control flow.",
-      "source_count": 42
+      "source_count": 42,
+      "deferred_source_count": 0,
+      "task_limit": 24
     }
   ]
 }
@@ -121,7 +126,15 @@ When `--host-readonly` is used, `host_readonly.commands[]` stores command names,
   "version": 2,
   "kind": "ai-docs-v2-schedule",
   "source_index": "/abs/.../source-index/index-final.json",
+  "profile": "code-first",
+  "slot_task_limits": {
+    "overview": 8,
+    "architecture": 24,
+    "api_or_types": 10,
+    "runtime_ops": 8
+  },
   "task_count": 1,
+  "deferred_source_count": 0,
   "tasks": [
     {
       "task_id": "architecture-scout-001",
@@ -135,13 +148,37 @@ When `--host-readonly` is used, `host_readonly.commands[]` stores command names,
           "lines": [1, 210],
           "sha256": "hex",
           "role_guess": "source",
-          "token_estimate": 1800
+          "token_estimate": 1800,
+          "schedule_priority": 1
         }
       ]
     }
   ]
 }
 ```
+
+## Deferred Sources
+
+`planning/deferred-sources.json`
+
+```json
+{
+  "version": 2,
+  "kind": "ai-docs-v2-deferred-sources",
+  "profile": "code-first",
+  "sources": [
+    {
+      "path": "docs/archive/old-plan.md",
+      "role_guess": "documentation",
+      "slot_id": "overview",
+      "reason": "profile_skipped:code-first",
+      "token_estimate": 4200
+    }
+  ]
+}
+```
+
+Deferred sources are postponed evidence, not deleted evidence. The orchestrator may schedule them later when the dashboard shows a coverage gap.
 
 ## Packet
 
