@@ -96,6 +96,10 @@ python3 scripts/ai-project-docs/synthesize_docs.py \
   --project-root .
 ```
 
+Applying staged docs to the project is a separate reviewed step. If existing non-v2 `ai-docs`
+files would be overwritten, `--apply` refuses unless `--force-apply` is explicitly provided for a
+reviewed migration.
+
 Validate, dashboard, and drift-check:
 
 ```bash

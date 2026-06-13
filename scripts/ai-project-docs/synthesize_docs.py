@@ -121,11 +121,41 @@ def copy_tree(src: Path, dst: Path) -> None:
         shutil.copy2(path, target)
 
 
+def has_v2_state(ai_docs: Path) -> bool:
+    state_path = ai_docs / "ai-docs-state.json"
+    if not state_path.exists():
+        return False
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return state.get("version") == 2
+
+
+def apply_conflicts(staged_docs: Path, ai_docs: Path) -> list[str]:
+    if has_v2_state(ai_docs):
+        return []
+    conflicts = []
+    for path in sorted(staged_docs.rglob("*")):
+        if path.is_dir() or path.name == "ai-docs-state.json":
+            continue
+        rel = path.relative_to(staged_docs)
+        target = ai_docs / rel
+        if target.exists():
+            conflicts.append(rel.as_posix())
+    return conflicts
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("run_dir")
     parser.add_argument("--project-root", default=".")
     parser.add_argument("--apply", action="store_true", help="Write docs into <project-root>/ai-docs instead of staging only")
+    parser.add_argument(
+        "--force-apply",
+        action="store_true",
+        help="Allow --apply to overwrite existing non-v2 ai-docs files after explicit review",
+    )
     args = parser.parse_args()
 
     run_dir = Path(args.run_dir).resolve()
@@ -164,6 +194,13 @@ def main() -> int:
     if args.apply:
         ai_docs = project_root / "ai-docs"
         ai_docs.mkdir(parents=True, exist_ok=True)
+        conflicts = apply_conflicts(out_dir, ai_docs)
+        if conflicts and not args.force_apply:
+            raise SystemExit(
+                "Refusing to overwrite existing non-v2 ai-docs files without --force-apply: "
+                + ", ".join(conflicts[:12])
+                + (" ..." if len(conflicts) > 12 else "")
+            )
         copy_tree(out_dir, ai_docs)
     print(
         json.dumps(

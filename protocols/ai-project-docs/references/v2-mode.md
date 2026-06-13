@@ -274,6 +274,8 @@ python3 scripts/ai-project-docs/synthesize_docs.py \
   --apply
 ```
 
+If existing non-v2 `ai-docs` files would be overwritten, apply refuses by default. For an explicit v1→v2 migration after review, add `--force-apply`.
+
 Use either `merge_writer_outputs.py` for AI-written drafts or `synthesize_docs.py` as the deterministic fallback. Do not apply both blindly; choose the reviewed staged output.
 
 ## Step 8: Review and Validate Synthesis
