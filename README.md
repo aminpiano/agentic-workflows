@@ -50,7 +50,7 @@ vendors at any point without rewriting anything.
 | Protocol | Purpose | Status |
 | --- | --- | --- |
 | [Authority Research](protocols/authority-research/README.md) | Build a source-backed research corpus and article-ready evidence packs | flagship |
-| [AI Project Docs](protocols/ai-project-docs/README.md) | Generate and maintain project documentation optimized for future AI agents | companion |
+| [AI Project Docs](protocols/ai-project-docs/README.md) | Generate and maintain repo-grounded project documentation optimized for future AI agents | v2 companion |
 | [Deliberate](protocols/deliberate/README.md) | Run lightweight multi-model review rounds for high-tradeoff decisions | companion |
 | [Seogo](protocols/seogo/README.md) | Keep long-term project context, session handoff, lessons, and progress in a local knowledge shelf | companion |
 
@@ -129,6 +129,19 @@ python3 scripts/authority-research/make_worker_prompt.py \
   --task-id 001 \
   --contract source-scout
 ```
+
+For AI project documentation:
+
+```bash
+RUN_DIR=$(python3 scripts/ai-project-docs/init_v2_run.py . | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_dir"])')
+python3 scripts/ai-project-docs/repo_index.py . \
+  --out-dir "$RUN_DIR/source-index"
+python3 scripts/ai-project-docs/make_v2_schedule.py \
+  "$RUN_DIR/source-index/index-final.json"
+```
+
+Then follow [`protocols/ai-project-docs/README.md`](protocols/ai-project-docs/README.md) to
+generate worker prompts, merge packets, synthesize docs, validate evidence, and check drift.
 
 ## Repository layout
 

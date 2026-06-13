@@ -1,6 +1,10 @@
 # AI Docs Specification
 
-Use this specification to generate `ai-docs/` for a project.
+Status: v1 legacy specification.
+
+Use this specification only for the fixed 12-document v1 layout. For the current v2 workflow,
+start with `protocols/ai-project-docs/README.md` and
+`protocols/ai-project-docs/references/v2-mode.md`.
 
 ## Hard Rules
 
