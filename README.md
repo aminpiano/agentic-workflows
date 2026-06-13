@@ -84,6 +84,10 @@ done-marker as described, and keep long material in files rather than in chat hi
 For research:
 
 ```bash
+python3 -m pip install -r requirements.txt
+```
+
+```bash
 python3 scripts/authority-research/init_run.py \
   --project . \
   --topic "example research topic"
@@ -105,8 +109,25 @@ Assign the generated tasks to whichever agents you use. Each worker writes its o
 marker. Measure progress with:
 
 ```bash
+python3 scripts/authority-research/validate_run.py \
+  data/authority-research-runs/<run-id>
+
 python3 scripts/authority-research/measure_run.py \
   data/authority-research-runs/<run-id>
+
+python3 scripts/authority-research/make_run_dashboard.py \
+  data/authority-research-runs/<run-id>
+```
+
+Generate worker prompts from schedule tasks so every worker receives the same instruction
+boundary:
+
+```bash
+python3 scripts/authority-research/make_worker_prompt.py \
+  --run-dir data/authority-research-runs/<run-id> \
+  --schedule data/authority-research-runs/<run-id>/schedule/source-scout-schedule.yaml \
+  --task-id 001 \
+  --contract source-scout
 ```
 
 ## Repository layout

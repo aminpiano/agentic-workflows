@@ -1,11 +1,12 @@
 task_id: "001"
-phase: "source-scout"
 status: done
-worker: "agent-name"
+worker: codex-subagent
 started_at: "2026-01-01T00:00:00Z"
-completed_at: "2026-01-01T00:00:00Z"
-inputs:
-  - "schedule/work-schedule.yaml#001"
-outputs:
+finished_at: "2026-01-01T00:30:00Z"
+output_files:
   - "inventory/001-sources.yaml"
-notes: "Short completion note. No raw source dumps."
+items_collected: 0
+items_rejected: 0
+bytes_written: 0
+errors: []
+next_suggested_tasks: []

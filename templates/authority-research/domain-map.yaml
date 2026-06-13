@@ -1,55 +1,67 @@
 version: authority_research_domain_map_v0_1
-topic: "Replace with the research topic"
+domain: "replace-with-domain-slug"
+title: "Replace with the research topic"
+description: "Broad source collection map for this authority-research run."
 defaults:
-  language: "English"
-  source_policy:
-    prefer:
-      - official documentation
-      - primary sources
-      - standards bodies
-      - regulator publications
-      - peer-reviewed papers
-    avoid:
-      - unsourced summaries
-      - copied SEO pages
-      - anonymous claims without evidence
+  preferred_worker: codex
+  source_types:
+    - official documentation
+    - primary sources
+    - standards bodies
+    - regulator publications
+    - peer-reviewed papers
 axes:
   - id: "official-sources"
     label: "Official sources"
     priority: critical
-    questions:
-      - "Which official sources define the topic?"
-      - "What terminology do they use?"
-    source_families:
+    preferred_worker: codex
+    scope: "Definitions, terminology, policy, and primary official material."
+    search_terms:
+      - "replace topic official documentation"
+      - "replace topic standard"
+    source_types:
       - "official websites"
       - "documentation"
       - "policy pages"
+    seed_sources: []
+    notes:
+      - "Prefer original sources over summaries."
     required_outputs:
       - "inventory"
       - "profiles"
   - id: "market-and-practice"
     label: "Market and practice"
     priority: medium
-    questions:
-      - "How do practitioners describe the problem?"
-      - "Which vendors or tools appear repeatedly?"
-    source_families:
+    preferred_worker: codex
+    scope: "Practitioner usage, vendor material, case studies, and operational practice."
+    search_terms:
+      - "replace topic practitioner guide"
+      - "replace topic vendor documentation"
+    source_types:
       - "product docs"
       - "case studies"
       - "technical blogs"
+    seed_sources: []
+    notes:
+      - "Resolve derivative posts to original sources when possible."
     required_outputs:
       - "inventory"
       - "profiles"
   - id: "controversies-and-failures"
     label: "Controversies and failures"
     priority: high
-    questions:
-      - "What claims are disputed?"
-      - "Where do systems fail in practice?"
-    source_families:
+    preferred_worker: codex
+    scope: "Disputed claims, failure modes, incident reports, and critical reviews."
+    search_terms:
+      - "replace topic failure mode"
+      - "replace topic criticism"
+    source_types:
       - "issue trackers"
       - "incident reports"
       - "critical reviews"
+    seed_sources: []
+    notes:
+      - "Keep claims separate from evidence and use UNKNOWN when source support is missing."
     required_outputs:
       - "inventory"
       - "profiles"

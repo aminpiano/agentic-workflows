@@ -1,23 +1,47 @@
 #!/usr/bin/env python3
-"""Create a simple authority-research work schedule from a domain map."""
+"""Create an authority-research work schedule from a domain-map YAML file."""
 
 from __future__ import annotations
 
 import argparse
 import json
-import re
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 
 PHASES = {
-    "source-scout": "Find source lists and durable source families for this axis.",
-    "site-profile": "Profile source sites for access method, value, trust, and collection strategy.",
-    "collection": "Collect assigned material into raw, triaged, and rejected files.",
-    "classification": "Classify collected material by topic, source type, trust, and usefulness.",
-    "source-verification": "Verify source existence and metadata.",
-    "fact-verification": "Verify factual claims against sources.",
+    "source-scout": {
+        "expected_outputs": ["inventory", "done"],
+        "verb": "Find source lists and durable source families for this axis.",
+    },
+    "site-profile": {
+        "expected_outputs": ["profiles", "done"],
+        "verb": "Profile known source sites for access method, rough item count, parsing feasibility, and collection strategy.",
+    },
+    "collection": {
+        "expected_outputs": ["raw", "triaged", "rejected", "done"],
+        "verb": "Collect assigned materials into raw, triaged, and rejected files.",
+    },
+    "classification": {
+        "expected_outputs": ["classified", "done"],
+        "verb": "Classify collected materials by topic, source type, trust grade, and usefulness.",
+    },
+    "source-verification": {
+        "expected_outputs": ["verified", "done"],
+        "verb": "Verify source existence and metadata correctness.",
+    },
+    "fact-verification": {
+        "expected_outputs": ["verified", "done"],
+        "verb": "Verify extracted factual claims against sources.",
+    },
+    "drafting": {
+        "expected_outputs": ["drafted", "done"],
+        "verb": "Draft article material from verified or explicitly approved sources only.",
+    },
 }
+
 
 PRIORITY = {"critical": 100, "high": 80, "medium": 50, "low": 20}
 
@@ -28,85 +52,129 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run-dir", required=True, type=Path)
     parser.add_argument("--phase", choices=sorted(PHASES), default="source-scout")
     parser.add_argument("--out", type=Path, default=None)
+    parser.add_argument("--codex-start", type=int, default=1)
+    parser.add_argument("--agy-start", type=int, default=999)
     return parser.parse_args()
 
 
-def load_minimal_yaml(path: Path) -> dict[str, Any]:
-    """Parse the small domain-map template without requiring PyYAML."""
-    text = path.read_text(encoding="utf-8")
-    axes: list[dict[str, Any]] = []
-    current: dict[str, Any] | None = None
-    current_list: str | None = None
-
-    for raw in text.splitlines():
-        line = raw.rstrip()
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        if re.match(r"\s*-\s+id:", line):
-            current = {"id": stripped.split(":", 1)[1].strip().strip('"')}
-            axes.append(current)
-            current_list = None
-            continue
-        if current is None:
-            continue
-        key_match = re.match(r"\s{4}([a-zA-Z0-9_-]+):\s*(.*)$", line)
-        if key_match:
-            key, value = key_match.groups()
-            value = value.strip()
-            if value:
-                current[key] = value.strip('"')
-                current_list = None
-            else:
-                current[key] = []
-                current_list = key
-            continue
-        item_match = re.match(r"\s{6}-\s*(.*)$", line)
-        if item_match and current_list:
-            current[current_list].append(item_match.group(1).strip().strip('"'))
-
-    return {"axes": axes}
+def priority_value(value: Any) -> int:
+    if isinstance(value, int):
+        return value
+    return PRIORITY.get(str(value or "medium").lower(), 50)
 
 
-def priority_value(axis: dict[str, Any]) -> int:
-    return PRIORITY.get(str(axis.get("priority", "medium")).lower(), 50)
+def ensure_list(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    return [value]
+
+
+def task_instruction(axis: dict[str, Any], phase: str, defaults: dict[str, Any]) -> str:
+    phase_info = PHASES[phase]
+    lines = [
+        phase_info["verb"],
+        "",
+        f"Axis id: {axis.get('id')}",
+        f"Axis label: {axis.get('label') or axis.get('id')}",
+        f"Scope: {axis.get('scope') or 'UNKNOWN'}",
+    ]
+    terms = ensure_list(axis.get("search_terms"))
+    if terms:
+        lines.extend(["", "Search terms:"])
+        lines.extend(f"- {term}" for term in terms)
+    source_types = ensure_list(axis.get("source_types")) or ensure_list(defaults.get("source_types"))
+    if source_types:
+        lines.extend(["", "Desired source types:"])
+        lines.extend(f"- {source_type}" for source_type in source_types)
+    seed_sources = ensure_list(axis.get("seed_sources"))
+    if seed_sources:
+        lines.extend(["", "Seed sources:"])
+        lines.extend(f"- {source}" for source in seed_sources)
+    notes = ensure_list(axis.get("notes"))
+    if notes:
+        lines.extend(["", "Notes and cautions:"])
+        lines.extend(f"- {note}" for note in notes)
+    lines.extend(
+        [
+            "",
+            "Worker requirements:",
+            "- Write files under the assigned run folder only.",
+            "- Write done/<task_id>.yaml.",
+            "- Use UNKNOWN for unsupported or missing facts.",
+            "- Final chat response should contain only task id, status, and done marker path.",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def make_schedule(domain_map: dict[str, Any], run_dir: Path, phase: str, codex_start: int, agy_start: int) -> dict[str, Any]:
+    defaults = domain_map.get("defaults", {}) or {}
+    axes = list(domain_map.get("axes", []) or [])
+    axes.sort(key=lambda item: (-priority_value(item.get("priority")), str(item.get("id") or "")))
+
+    codex_id = codex_start
+    agy_id = agy_start
+    tasks = []
+    for axis in axes:
+        worker = str(axis.get("preferred_worker") or defaults.get("preferred_worker") or "codex").lower()
+        if worker not in {"codex", "agy", "either"}:
+            worker = "codex"
+        if worker == "either":
+            worker = "codex"
+        if worker == "agy":
+            task_id = f"{agy_id:03d}"
+            agy_id -= 1
+        else:
+            task_id = f"{codex_id:03d}"
+            codex_id += 1
+        tasks.append(
+            {
+                "task_id": task_id,
+                "axis_id": axis.get("id"),
+                "axis_label": axis.get("label") or axis.get("id"),
+                "status": "pending",
+                "worker": worker,
+                "priority": priority_value(axis.get("priority")),
+                "title": f"{PHASES[phase]['verb']} [{axis.get('label') or axis.get('id')}]",
+                "instruction": task_instruction(axis, phase, defaults),
+                "expected_outputs": list(PHASES[phase]["expected_outputs"]),
+            }
+        )
+
+    tasks.sort(key=lambda item: int(item["task_id"]))
+    return {
+        "version": "authority_research_schedule_v0_1",
+        "source": "domain-map",
+        "domain": domain_map.get("domain"),
+        "title": domain_map.get("title"),
+        "phase": phase,
+        "run_dir": str(run_dir),
+        "assignment_policy": {
+            "codex_direction": "ascending",
+            "agy_direction": "descending",
+            "codex_batch_size": 5,
+            "agy_concurrency": 1,
+        },
+        "tasks": tasks,
+    }
 
 
 def main() -> int:
     args = parse_args()
+    domain_map_path = args.domain_map.expanduser().resolve()
     run_dir = args.run_dir.expanduser().resolve()
-    data = load_minimal_yaml(args.domain_map.expanduser().resolve())
-    axes = sorted(data.get("axes", []), key=priority_value, reverse=True)
-    if not axes:
-        raise SystemExit("domain map has no axes")
-
-    tasks = []
-    for index, axis in enumerate(axes, start=1):
-        task_id = f"{index:03d}"
-        tasks.append(
-            {
-                "task_id": task_id,
-                "phase": args.phase,
-                "axis_id": axis.get("id"),
-                "axis_label": axis.get("label", axis.get("id")),
-                "priority": axis.get("priority", "medium"),
-                "instruction": PHASES[args.phase],
-                "questions": axis.get("questions", []),
-                "source_families": axis.get("source_families", []),
-                "expected_done_marker": f"done/{task_id}.yaml",
-            }
-        )
-
-    schedule = {
-        "version": "authority_research_schedule_v0_1",
-        "phase": args.phase,
-        "run_dir": str(run_dir),
-        "tasks": tasks,
-    }
-    out = args.out or run_dir / "schedule" / f"{args.phase}-schedule.json"
+    with domain_map_path.open("r", encoding="utf-8") as f:
+        domain_map = yaml.safe_load(f) or {}
+    schedule = make_schedule(domain_map, run_dir, args.phase, args.codex_start, args.agy_start)
+    out = args.out.expanduser().resolve() if args.out else run_dir / "schedule" / f"{args.phase}-schedule.yaml"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(schedule, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"schedule": str(out), "tasks": len(tasks)}, indent=2))
+    out.write_text(yaml.safe_dump(schedule, allow_unicode=True, sort_keys=False, width=120), encoding="utf-8")
+    counts = {}
+    for task in schedule["tasks"]:
+        counts[task["worker"]] = counts.get(task["worker"], 0) + 1
+    print(json.dumps({"schedule_path": str(out), "tasks": len(schedule["tasks"]), "by_worker": counts}, ensure_ascii=False))
     return 0
 
 
