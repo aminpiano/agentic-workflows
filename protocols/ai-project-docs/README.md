@@ -28,6 +28,13 @@ native source index
 The protocol is runtime-agnostic. It does not require Claude Team features, npm, Repomix, web
 search, or a central service in the default path.
 
+## v3 (planned, not yet shipped)
+
+A v3 redesign is designed but not yet implemented: a two-layer hybrid (self-contained `core` +
+code-linked `extended`) rendered from one claim ledger, with AST/semantic anchors, a first-class
+factual cache, and task-based evaluation. v2 stays the stable default until v3 is built and
+validated. Design rationale and priorities: [`v3-redesign-roadmap.md`](v3-redesign-roadmap.md).
+
 ## Quick Start
 
 Run from the target project root after copying or referencing this repository. The command prints
