@@ -32,8 +32,10 @@ search, or a central service in the default path.
 
 v3 is a model-first redesign: the first-class output is a structured architecture model
 (`ai-docs/.model/` — entities, edges, flows, claims, anchors) and markdown becomes a
-regeneratable view. Its validated increment over v2 is an **evidence-bound audit pass**, a
-**deterministic gate** (schema + catalog linter), and **3-layer claim-drift checking**.
+regeneratable view. Its validated increment over v2: an **evidence-bound audit pass**, a
+**compose pass** (cross-slot synthesis — classifies/resolves open questions where evidence
+allows and composes cross-cutting views, evidence-bound), a **deterministic gate** (schema +
+catalog linter), and **3-layer claim-drift checking**.
 
 Two roadmap items — AST/semantic anchors and a first-class factual cache — are designed but
 **not yet built** (current anchors are v2-level file+SHA). v2 stays the stable default; v3 is

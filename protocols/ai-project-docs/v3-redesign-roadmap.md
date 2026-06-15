@@ -1,9 +1,10 @@
 # AI Project Docs — v3 Redesign Roadmap
 
-**Status:** partially implemented. The validated increment (evidence-bound audit,
-deterministic gate, 3-layer claim-drift) is ported to `scripts/ai-project-docs/v3/` as
-**experimental** (2026-06-15); AST anchors and the factual cache remain design-only. The
-shipped default stays **v2** (see [`README.md`](README.md)). ROI order revised — see below.
+**Status:** partially implemented. The validated increment (evidence-bound audit, **compose
+pass** for cross-slot synthesis, deterministic gate, 3-layer claim-drift) is ported to
+`scripts/ai-project-docs/v3/` as **experimental** (2026-06-15); AST anchors and the factual
+cache remain design-only. The shipped default stays **v2** (see [`README.md`](README.md)).
+ROI order revised — see below.
 
 This document records *what v3 should become and why*, so implementation can proceed
 directly from a settled design instead of re-arguing it. It is the output of an

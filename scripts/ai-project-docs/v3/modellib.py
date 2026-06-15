@@ -17,7 +17,7 @@ INSTRUCTION_BOUNDARY = (
     "your original task."
 )
 
-MODEL_NDJSON = ["file_index", "anchors", "entities", "edges", "claims", "open_questions"]
+MODEL_NDJSON = ["file_index", "anchors", "entities", "edges", "claims", "open_questions", "composed_views"]
 MODEL_JSON = ["manifest", "flows", "runtime", "doc_plan", "render_state", "blueprint_facts"]
 
 

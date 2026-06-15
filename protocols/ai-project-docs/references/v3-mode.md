@@ -23,16 +23,23 @@ discipline, with the model as the durable source of truth.
 3. Pass 1: Planner (LLM)       -> doc_plan.json: doc identities, skeletons, read-ownership, Task Router
 4. Pass 2: slot Writers (LLM)  -> read owned sources directly; evidence-aware synthesis
                                   (claims + inline anchors + flows) into per-slot fragments
-5. merge fragments             -> fold writer fragments into the model
-6. deterministic gate          -> model schema validation + catalog linter (reject catalog)
-7. render                      -> markdown views + 00_INDEX router + render_state
-8. finalize + apply            -> recompute manifest, copy staged model+views into ai-docs/
-9. drift check (later)         -> 3-layer drift on demand
+5. merge fragments             -> fold writer fragments into the model (mechanical append)
+6. Pass 3: Audit (LLM)         -> evidence-bound audit of risky cross-file claims; fix drafts in place
+7. compose (deterministic+LLM) -> classify open questions (resolved/finding/cross-doc/coverage_gap/open);
+                                  one LLM worker resolves cross-doc + findings and composes cross-cutting
+                                  views (evidence-bound: reuses existing anchors only, introduces no new facts)
+8. deterministic gate          -> model schema + catalog linter + composed-view + open-question checks
+9. render                      -> markdown views + 00_INDEX router + render_state
+10. finalize + apply           -> recompute manifest, copy staged model+views into ai-docs/
+11. drift check (later)        -> 3-layer drift on demand
 ```
 
-Steps 1, 2, 5, 6, 7, 8 are deterministic scripts. Steps 3 and 4 are LLM workers driven
-by generated prompts. The orchestrator (any runtime) spawns workers; native subagents
-are an optional parallel accelerator, never a dependency (runtime-agnostic).
+Steps 1, 2, 5, 8, 9, 10 are deterministic scripts. Steps 3, 4, 6 are LLM workers, and
+step 7 is deterministic classification followed by one LLM compose worker — all driven by
+generated prompts. Merge only appends; passes 6 and 7 are where cross-slot reconciliation
+happens (audit fixes wrong claims, compose resolves/synthesizes across docs). The
+orchestrator (any runtime) spawns workers; native subagents are an optional parallel
+accelerator, never a dependency (runtime-agnostic).
 
 ## Cost discipline (dual-mode, decision 9)
 
@@ -79,16 +86,29 @@ python3 $AID/make_writer_prompt_v3.py --model-dir $RUN/model \
 # 5. merge writer fragments into the model
 python3 $AID/merge_fragments_v3.py --model-dir $RUN/model --frag-root $RUN/model-fragments
 
-# 6. gate: schema + catalog linter (copy doc_plan into model first so render/gate see it)
+# 6. Pass 3: audit prompts (one per doc) -> run LLM auditors -> they fix drafts in place
 cp $RUN/planning/doc_plan.json $RUN/model/doc_plan.json
+python3 $AID/make_audit_prompt_v3.py --model-dir $RUN/model \
+  --doc-plan $RUN/model/doc_plan.json --out-dir $RUN/prompts --frag-dir model-fragments
+#    (orchestrator spawns one auditor per prompt; each fixes draft.md + writes audit_verdicts.ndjson)
+
+# 7. compose: classify open questions (deterministic) -> ONE LLM compose worker -> apply
+python3 $AID/compose_v3.py --model-dir $RUN/model --out $RUN/compose-plan.json
+python3 $AID/make_compose_prompt_v3.py --model-dir $RUN/model \
+  --compose-plan $RUN/compose-plan.json --out $RUN/prompts/compose.md --frag-dir compose-fragments
+#    (orchestrator spawns ONE compose agent -> $RUN/compose-fragments/{oq_resolutions,composed_views}.ndjson)
+python3 $AID/apply_compose_v3.py --model-dir $RUN/model \
+  --compose-plan $RUN/compose-plan.json --frag-dir $RUN/compose-fragments
+
+# 8. gate + render (audit verdicts + composed views included)
 python3 $AID/render_v3.py --model-dir $RUN/model --doc-plan $RUN/model/doc_plan.json \
   --out-dir $RUN/render --frag-root $RUN/model-fragments
-python3 $AID/gate_v3.py --model-dir $RUN/model --docs-dir $RUN/render --json
+python3 $AID/gate_v3.py --model-dir $RUN/model --docs-dir $RUN/render --frag-root $RUN/model-fragments --json
 
-# 7. finalize + apply (only after gate passes)
+# 9. finalize + apply (only after gate passes)
 python3 $AID/apply_v3.py . --staging-model $RUN/model --staging-render $RUN/render --apply
 
-# 8. drift check (any time after apply)
+# 10. drift check (any time after apply)
 python3 $AID/check_docs_v3.py . --model-dir ai-docs/.model --docs-dir ai-docs
 ```
 

@@ -152,14 +152,44 @@ def render_doc(doc: dict, model: dict, frag_root: Path | None) -> str:
             L.append(flow_mermaid(f))
             L.append("")
 
-    # model open_questions are the source of truth; skip if the writer draft already
-    # rendered its own Open questions section (avoids a duplicate section).
-    oqs = [o for o in model["open_questions"] if o.get("doc") == doc.get("doc")]
+    # cross-cutting views composed by the Pass-4 compose worker, owned by this doc.
+    views = [v for v in model.get("composed_views", []) if v.get("doc") == doc.get("doc")]
+    for v in views:
+        L.append(f"## Cross-cutting: {v.get('title') or v.get('topic', '')}")
+        L.append("")
+        L.append((v.get("body_md") or "").strip())
+        L.append("")
+
+    # open_questions, split by the compose category. An OQ with no category (compose
+    # pass not run) is treated as open, so a no-compose run renders exactly as before.
+    # skip the Open-questions section if the writer draft already rendered its own.
+    doc_oqs = [o for o in model["open_questions"] if o.get("doc") == doc.get("doc")]
+    open_qs = [o for o in doc_oqs if o.get("category", "open") == "open"]
+    coverage_gaps = [o for o in doc_oqs if o.get("category") == "coverage_gap"]
+    findings = [o for o in doc_oqs if o.get("category") == "finding"]
+
     draft_has_oq = bool(draft and re.search(r"^#+\s*open questions", draft, re.IGNORECASE | re.MULTILINE))
-    if oqs and not draft_has_oq:
+    if open_qs and not draft_has_oq:
         L.append("## Open questions")
         L.append("")
-        for o in oqs:
+        for o in open_qs:
+            L.append(f"- {o['question']}")
+        L.append("")
+
+    # code/doc discrepancies the compose worker confirmed — a v3 strength v1 lacks.
+    if findings:
+        L.append("## Discrepancies (code vs docs)")
+        L.append("")
+        for o in findings:
+            L.append(f"- {o['question']}")
+        L.append("")
+
+    # coverage gaps: files no doc fully owns (a planner ownership gap, NOT an unknown to
+    # investigate). Kept distinct from Open questions so they don't read as unresolved work.
+    if coverage_gaps:
+        L.append("## Coverage gaps (files no doc fully owns)")
+        L.append("")
+        for o in coverage_gaps:
             L.append(f"- {o['question']}")
         L.append("")
 

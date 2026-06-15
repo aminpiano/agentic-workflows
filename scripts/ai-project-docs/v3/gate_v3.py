@@ -114,6 +114,20 @@ def validate_model(model_dir: Path) -> list[dict]:
             if ent and ent not in entity_ids:
                 warn("flow step references unknown entity", flow=fl.get("id"), entity=ent)
 
+    # composed views (Pass-4 compose): structural fields + support must resolve to a
+    # real anchor (Invariant 2 spirit — a cross-cutting view is still evidence-bound).
+    composed = ml.load_ndjson(model_dir / "composed_views.ndjson")
+    for v in composed:
+        for k in ("id", "topic", "body_md", "support", "doc"):
+            if k not in v:
+                fail("composed view missing field", field=k, view=v.get("id"))
+        sup = v.get("support") or []
+        if not sup:
+            fail("composed view has no support anchor (Invariant 2)", view=v.get("id"))
+        for s in sup:
+            if s not in anchor_ids:
+                fail("composed view support anchor does not resolve", view=v.get("id"), anchor=s)
+
     return findings
 
 
@@ -245,6 +259,30 @@ def validate_audit(frag_root: Path) -> list[dict]:
     return findings
 
 
+# ---------------- open-question health (Pass 4 compose) ----------------
+
+def lint_open_questions(model_dir: Path) -> list[dict]:
+    """Flag compose-stage regressions. If OQs carry no compose `category`, the compose
+    stage did not run (merge->compose->gate regression). If it ran but barely resolved
+    anything, warn so a broken compose can't silently ship a half-finished-looking set."""
+    oqs = ml.load_ndjson(model_dir / "open_questions.ndjson")
+    if not oqs:
+        return []
+    findings: list[dict] = []
+    if not any(o.get("category") for o in oqs):
+        findings.append({"severity": "warning", "gate": "compose",
+                         "issue": "open_questions carry no compose category — the compose "
+                                  "stage did not run (merge->compose->gate regression)"})
+        return findings
+    open_like = [o for o in oqs if o.get("category", "open") in ("open", "coverage_gap")]
+    ratio = len(open_like) / len(oqs)
+    if len(oqs) >= 10 and ratio > 0.8:
+        findings.append({"severity": "warning", "gate": "compose",
+                         "issue": f"{len(open_like)}/{len(oqs)} open questions unresolved after "
+                                  f"compose ({ratio:.0%}) — compose may be under-resolving"})
+    return findings
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model-dir", required=True)
@@ -255,6 +293,7 @@ def main() -> int:
 
     model_dir = Path(args.model_dir).resolve()
     findings = validate_model(model_dir)
+    findings += lint_open_questions(model_dir)
     if args.docs_dir:
         findings += lint_docs(Path(args.docs_dir).resolve(), model_dir)
     if args.frag_root:
