@@ -72,6 +72,19 @@ vendors at any point without rewriting anything.
 - **axis discovery** — the step that splits a research topic into independent sub-axes, so workers
   can fan out in parallel without repeating each other's work.
 
+## Related writing
+
+Field notes behind these protocols — written while building and operating them, with sources and
+failure patterns. Full topic hub: **[notes.ja-dan.com / agentic workflows](https://notes.ja-dan.com/topics/agentic-workflows)**.
+
+- [Filesystem as agent memory](https://notes.ja-dan.com/posts/agentic-workflows/2026-06-11-filesystem-as-agent-memory) — stop using chat history as your database
+- [The real bottleneck in AI coding is continuity, not code](https://notes.ja-dan.com/posts/agentic-workflows/2026-06-11-project-continuity-bottleneck)
+- [Durable project memory that survives dead sessions](https://notes.ja-dan.com/posts/agentic-workflows/2026-06-11-durable-project-memory)
+- [The orchestrator's first guess is the ceiling: splitting research into axes](https://notes.ja-dan.com/posts/agentic-workflows/2026-06-11-axis-discovery-completeness)
+- [Separate claims from sources: a ledger that filters nonsense before publishing](https://notes.ja-dan.com/posts/agentic-workflows/2026-06-11-claim-ledger-audit)
+- [Don't trust one model: validating decisions with multi-model deliberation](https://notes.ja-dan.com/posts/agentic-workflows/2026-06-11-multi-model-deliberation)
+- [Why agents blend plausible nonsense into research](https://notes.ja-dan.com/posts/agentic-workflows/2026-06-11-agent-research-hallucination)
+
 ## For AI agents
 
 If you are an agent reading this repository, start at [`adapters/README.md`](adapters/README.md)
