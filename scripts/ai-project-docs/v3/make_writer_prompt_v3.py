@@ -117,7 +117,11 @@ def render_prompt(doc: dict, model: dict, model_dir: Path, frag_dir: str,
             cc = collections.Counter(c["kind"] for c in bf["constraints"])
             L.append(f"**DB constraints** ({len(bf['constraints'])}) by kind: "
                      f"{json.dumps(dict(cc), ensure_ascii=False)} — full file:line list in blueprint_facts.json.")
-            L.append("  Do NOT assert a uniqueness / FK / index guarantee unless it appears in that list.")
+            L.append("  This is line-scanned from create/define sites and does NOT reconcile a later")
+            L.append("  DROP/ALTER. Do NOT assert a uniqueness/FK/index EXISTS from a create-migration")
+            L.append("  alone: if your owned sources are migrations, grep for a later drop of the same")
+            L.append("  object before claiming it lives at head, and never report an ORM `default=` as the")
+            L.append("  DB `server_default`. When unsure, file an open question, not a confident schema claim.")
             L.append("")
         if bf.get("middleware"):
             mw = [f"{m['name']} ({m['file']})" for m in bf["middleware"][:20]]
@@ -208,6 +212,10 @@ def render_prompt(doc: dict, model: dict, model_dir: Path, frag_dir: str,
     L.append("- KEEP detailed tables — full route tables (method/path/handler/auth), table-column")
     L.append("  schemas, env/config lists, job schedules. These are high-value for AI agents; do NOT")
     L.append("  thin them out to avoid 'cataloging'. Each table just needs a short prose lead.")
+    L.append("- DOCUMENT EVERY route/endpoint in YOUR owned sources HERE, in full. NEVER defer them to")
+    L.append("  'another doc' / 'the <X> doc' — if a route file is in your owned_sources it is YOUR job.")
+    L.append("  A pointer to a doc that may not exist is the #1 completeness failure (it silently drops")
+    L.append("  whole API surfaces). Only name another doc if it actually exists in the doc set.")
     L.append("- NEVER print claim ids (e.g. `architecture.001`) in the body text.")
     L.append("- Do NOT add an 'Open questions' section to draft.md — record them only in")
     L.append("  open_questions.ndjson; the renderer appends that section from the model.")

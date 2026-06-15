@@ -66,6 +66,15 @@ ROUTE_PATTERNS["typescript"] = ROUTE_PATTERNS["javascript"]
 ROUTE_PATTERNS["javascript-react"] = ROUTE_PATTERNS["javascript"]
 ROUTE_PATTERNS["typescript-react"] = ROUTE_PATTERNS["javascript"]
 
+# Multi-line decorator openers: `@router.post(` with the path literal on a FOLLOWING line
+# (common FastAPI style with many kwargs). Pure line-scanning misses these, which both drops
+# the route from blueprint_facts AND denies the endpoint file its +3 route tier score — so the
+# file falls to `defer` and the planner never sees it. Detect the opener, then take the first
+# string literal on the next few lines as the path.
+ROUTE_DECORATOR_OPEN = {
+    "python": re.compile(r"@\s*\w+\.(get|post|put|patch|delete|route)\s*\(\s*$", re.IGNORECASE),
+}
+
 
 # ---- imports -------------------------------------------------------------
 
@@ -206,7 +215,8 @@ def extract_file(rel_path: str, language: str, text: str) -> list[dict]:
     in_go_import = False
 
     for i, raw in enumerate(lines, start=1):
-        # routes
+        # routes — inline: @router.get("/x")
+        route_hit = False
         for pat in route_pats:
             m = pat.search(raw)
             if m:
@@ -215,7 +225,20 @@ def extract_file(rel_path: str, language: str, text: str) -> list[dict]:
                 method = groups[0].upper() if len(groups) >= 2 else "ANY"
                 out.append(_emit(rel_path, i, "route", path_lit,
                                  {"method": method, "route_path": path_lit}))
+                route_hit = True
                 break
+        # routes — multi-line: @router.post(\n  "/x", ...): path is on a later line
+        if not route_hit:
+            dec = ROUTE_DECORATOR_OPEN.get(language)
+            md = dec.search(raw) if dec else None
+            if md:
+                method = md.group(1).upper()
+                for j in range(i, min(i + 6, len(lines))):
+                    ps = re.search(r"[\"']([^\"']+)[\"']", lines[j])
+                    if ps:
+                        out.append(_emit(rel_path, i, "route", ps.group(1),
+                                         {"method": method, "route_path": ps.group(1)}))
+                        break
         # signatures
         for pat in sig_pats:
             m = pat.match(raw)

@@ -70,7 +70,11 @@ def render_audit_prompt(doc: dict, model: dict, model_dir: Path, frag_dir: str,
     if bf.get("constraints"):
         cc = collections.Counter(c["kind"] for c in bf["constraints"])
         L.append(f"- DB constraints by kind: {json.dumps(dict(cc), ensure_ascii=False)} "
-                 "— a uniqueness/FK/index claim is TRUE only if it appears in that list.")
+                 "— parser-derived from create/define SITES only. ⚠️ STARTING POINT, NOT ground "
+                 "truth: it is line-scanned and does NOT reconcile create↔drop, so an index/"
+                 "constraint listed here may have been DROPPED by a later migration; and an ORM "
+                 "`default=` here is not the DB `server_default`. Presence in this list is NOT proof "
+                 "the object exists at head — confirm the FINAL state in code (procedure below).")
     if bf.get("middleware"):
         L.append(f"- middleware/registration: "
                  f"{json.dumps([m['name'] for m in bf['middleware'][:20]], ensure_ascii=False)}")
@@ -104,6 +108,17 @@ def render_audit_prompt(doc: dict, model: dict, model_dir: Path, frag_dir: str,
     L.append("   `Authorization`, `Bearer`, `X-ADMIN-KEY`, `api_key`, middleware, `Depends`; for a")
     L.append("   uniqueness claim check the constraints list + migrations; for idempotency check for")
     L.append("   locks/unique keys/dedup.")
+    L.append("3b. SCHEMA FINAL-STATE rule (the #1 confirmed v3 error class — do NOT skip): for ANY")
+    L.append("    claim about a DB index / unique constraint / FK / column default / enum, the truth is")
+    L.append("    the state AFTER ALL migrations are applied to HEAD, never the first create site.")
+    L.append("    REQUIRED checks: (a) find the create/define; (b) grep the WHOLE migrations dir for a")
+    L.append("    LATER drop_index/drop_constraint/drop_column/DROP of the same object name, and trace")
+    L.append("    the revision chain (down_revision) to head — if a drop is on the path to head, the")
+    L.append("    object is ABSENT; (c) for a default, distinguish the ORM `default=` (app-side, set by")
+    L.append("    Python on insert) from the migration `server_default=` (DB-side) — state which one,")
+    L.append("    they frequently differ; (d) for an enum column, check `values_callable` — without it")
+    L.append("    SQLAlchemy stores the UPPERCASE member NAME, with it the lowercase `.value`. A")
+    L.append("    create-migration or a model `default=` ALONE is NOT proof of the head state.")
     L.append("4. Verdict: `supported` | `contradicted` | `insufficient`.")
     L.append("")
     L.append("## Fix the draft IN PLACE")
