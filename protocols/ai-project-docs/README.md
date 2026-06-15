@@ -28,12 +28,18 @@ native source index
 The protocol is runtime-agnostic. It does not require Claude Team features, npm, Repomix, web
 search, or a central service in the default path.
 
-## v3 (planned, not yet shipped)
+## v3 (experimental, available alongside v2)
 
-A v3 redesign is designed but not yet implemented: a two-layer hybrid (self-contained `core` +
-code-linked `extended`) rendered from one claim ledger, with AST/semantic anchors, a first-class
-factual cache, and task-based evaluation. v2 stays the stable default until v3 is built and
-validated. Design rationale and priorities: [`v3-redesign-roadmap.md`](v3-redesign-roadmap.md).
+v3 is a model-first redesign: the first-class output is a structured architecture model
+(`ai-docs/.model/` — entities, edges, flows, claims, anchors) and markdown becomes a
+regeneratable view. Its validated increment over v2 is an **evidence-bound audit pass**, a
+**deterministic gate** (schema + catalog linter), and **3-layer claim-drift checking**.
+
+Two roadmap items — AST/semantic anchors and a first-class factual cache — are designed but
+**not yet built** (current anchors are v2-level file+SHA). v2 stays the stable default; v3 is
+available for trial under `scripts/ai-project-docs/v3/` and is not yet task-eval-validated.
+Design, rationale, and the revised build priority: [`v3-redesign-roadmap.md`](v3-redesign-roadmap.md).
+Pipeline and commands: [`references/v3-mode.md`](references/v3-mode.md).
 
 ## Quick Start
 

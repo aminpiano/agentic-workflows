@@ -1,7 +1,9 @@
 # AI Project Docs — v3 Redesign Roadmap
 
-**Status:** design-frozen, implementation pending. The current shipped default is **v2**
-(see [`README.md`](README.md)). v3 is a planned redesign; nothing here is wired yet.
+**Status:** partially implemented. The validated increment (evidence-bound audit,
+deterministic gate, 3-layer claim-drift) is ported to `scripts/ai-project-docs/v3/` as
+**experimental** (2026-06-15); AST anchors and the factual cache remain design-only. The
+shipped default stays **v2** (see [`README.md`](README.md)). ROI order revised — see below.
 
 This document records *what v3 should become and why*, so implementation can proceed
 directly from a settled design instead of re-arguing it. It is the output of an
@@ -73,12 +75,29 @@ So v3 is a **two-layer hybrid**:
    **generator-model ≠ solver-model split**, a fixed held-out task set, blinded bundle
    names, and canary tasks (a deliberately stale claim, to catch doc over-trust).
 
-## Implementation priority (ROI)
+## Implementation priority (ROI) — revised 2026-06-15
 
-1. **Anchors** (tree-sitter symbol + snippet hash + commit SHA; `check` flags stale).
-2. **Factual cache** (generated blocks + freshness grade + topology/churn boundary).
-3. Eval harness — build alongside, small, early (process tool, not a shipped feature).
-4. *(Deferred)* Cross-cutting pre-composition beyond the simple graph.
+The original order (preserved at the bottom) ranked anchors and factual cache first. Two
+independent evidence lines overturned it: a **Phase-4 live run** on a real codebase (DCA)
+and a **direct v2↔v3 code comparison**. Both found that v3's actual, shipped value is the
+evidence-bound audit + deterministic gate + claim-drift — while AST anchors and the factual
+cache are *unbuilt* (`extract.py` is "No AST, stdlib only"; current anchors are the same
+file+SHA mechanism as v2), and the AST approach is in tension with this repo's no-runtime
+constraint. Build the proven part first; let measurement justify the rest.
+
+1. **Port + harden the validated increment** — evidence-bound audit (Pass-3), deterministic
+   gate (schema + catalog linter), 3-layer claim-drift. *(Done: ported to
+   `scripts/ai-project-docs/v3/` as experimental, 2026-06-15.)*
+2. **Task-based eval harness** — historical-commit tasks + automated scoring (replaces the
+   discredited blind doc-scoring). Gates trust in any further v3 claim; build before §3–4.
+3. **AST/semantic anchors** — only once the eval can show they beat v2-level file+SHA, and
+   only if tree-sitter stays a *helper* (no hard runtime dependency).
+4. **Factual cache** (generated blocks + freshness grade + topology/churn boundary) — gated
+   on the same eval.
+5. *(Deferred)* Cross-cutting pre-composition beyond the simple graph.
+
+> **Original priority (superseded 2026-06-15, kept for provenance):**
+> 1. Anchors · 2. Factual cache · 3. Eval harness · 4. (Deferred) Cross-cutting pre-composition.
 
 ## Repo-philosophy constraints
 
