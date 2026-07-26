@@ -23,6 +23,7 @@ BOUNDARY (P0 design rule — do not cross):
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Iterable
 
 SCHEMA_VERSION = "1.0"
@@ -104,6 +105,56 @@ PHASE2_DIRS = (
     "article-briefs", "synthesis", "dedup",
 )
 ALL_DIRS = PHASE1_DIRS + PHASE2_DIRS
+
+# ── schedule files ──────────────────────────────────────────────────────────
+# Two rules that exist because breaking either one silently destroys the only
+# record of what was supposed to run:
+#
+# 1. Schedules ACCUMULATE. Re-running a phase writes a new wave file instead of
+#    overwriting the previous one. `done/` markers accumulate forever, so if a
+#    schedule is overwritten its finished tasks become unattributable orphans
+#    and completion can no longer be computed for that run at all.
+# 2. Schedules are identified by SHAPE, not by folder or filename. `schedule/`
+#    also holds the domain map, axis candidates, and the completeness review —
+#    documents with entirely different schemas. Validating those as schedules
+#    (or counting their ids as tasks) produces nonsense.
+SCHEDULE_STEM = "-schedule"
+
+
+def is_schedule_doc(doc: Any) -> bool:
+    """True if a parsed YAML document is a work schedule.
+
+    Shape check only: a schedule is a mapping carrying a `tasks` list. No
+    filename guessing, no content interpretation.
+    """
+    return isinstance(doc, dict) and isinstance(doc.get("tasks"), list)
+
+
+def schedule_filename(phase: str, wave: int = 1) -> str:
+    """Filename for a phase's schedule at a given wave.
+
+    Wave 1 keeps the historical `<phase>-schedule.yaml` name so runs created
+    before waves existed stay readable by the same globs.
+    """
+    if wave < 1:
+        raise ValueError(f"wave must be >= 1, got {wave}")
+    return f"{phase}{SCHEDULE_STEM}.yaml" if wave == 1 else f"{phase}{SCHEDULE_STEM}-w{wave}.yaml"
+
+
+def next_schedule_path(schedule_dir: Path, phase: str) -> Path:
+    """Path for a NEW schedule of `phase`, never overwriting an existing one.
+
+    Touches the filesystem (existence only) to pick the next free wave — it
+    applies the naming rule above rather than interpreting any content, so it
+    stays inside this module's boundary.
+    """
+    wave = 1
+    while True:
+        candidate = schedule_dir / schedule_filename(phase, wave)
+        if not candidate.exists():
+            return candidate
+        wave += 1
+
 
 # ── helpers ─────────────────────────────────────────────────────────────────
 def normalize_status(value: Any) -> Any:

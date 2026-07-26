@@ -62,6 +62,36 @@ The worker's final chat response should contain only task id, status, and done m
 
 ## Work Schedule
 
+### Schedules accumulate — never overwrite one
+
+Re-running a phase writes a **new wave file**; it does not replace the previous
+schedule.
+
+```text
+schedule/collection-schedule.yaml       # wave 1 (historical name, kept)
+schedule/collection-schedule-w2.yaml    # wave 2 — pivot / delta tasks
+schedule/collection-schedule-w3.yaml    # wave 3 — repair after critic fail
+```
+
+The generator scripts pick the next free wave automatically
+(`_contract.next_schedule_path`); pass `--out` only to override deliberately.
+
+This matters because `done/` markers accumulate forever. Overwrite a schedule
+and its finished tasks become unattributable — the run's completion can no
+longer be computed at all, and nothing reports that it happened. Every delta or
+repair task must therefore be appended to a schedule **before** its worker is
+spawned, never handed to a worker directly.
+
+### Schedules are identified by shape, not by filename
+
+`schedule/` also holds `domain-map.yaml`, `candidate-axes.yaml`, and
+`completeness-review.yaml` — different schemas entirely. A document is a
+schedule when it is a mapping carrying a `tasks` list (`_contract.is_schedule_doc`).
+Readers must not assume every YAML under `schedule/` is a schedule, or axis ids
+get counted as task ids.
+
+### Schedule file
+
 Use `schedule/work-schedule.yaml`:
 
 ```yaml

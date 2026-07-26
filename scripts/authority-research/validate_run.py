@@ -36,6 +36,7 @@ from _contract import (
     TRUST_GRADE,
     VERDICT,
     WORKER,
+    is_schedule_doc,
 )
 
 
@@ -185,19 +186,18 @@ def validate_domain_map(run_dir: Path, issues: list[Issue]) -> None:
         validate_enum(issues, path, run_dir, f"{field}.preferred_worker", axis.get("preferred_worker"), AXIS_WORKER)
 
 
-def validate_schedule_file(path: Path, run_dir: Path, issues: list[Issue]) -> None:
+def validate_schedule_file(path: Path, run_dir: Path, issues: list[Issue], scheduled: set[str] | None = None) -> None:
     data = load_yaml(path, run_dir, issues)
     if data is None:
         return
-    if not isinstance(data, dict):
-        issue(issues, "error", path, run_dir, "$", "schedule must be a mapping")
+    # `schedule/` also holds the domain map, axis candidates, and the
+    # completeness review. Those are different schemas, not malformed
+    # schedules, so identify a schedule by shape and leave the rest alone.
+    if not is_schedule_doc(data):
+        if isinstance(data, dict) and not isinstance(data.get("tasks", []), list):
+            issue(issues, "error", path, run_dir, "tasks", "schedule tasks must be a list")
         return
-    tasks = data.get("tasks")
-    if tasks is None:
-        return
-    if not isinstance(tasks, list):
-        issue(issues, "error", path, run_dir, "tasks", "schedule tasks must be a list")
-        return
+    tasks = data["tasks"]
     seen: set[str] = set()
     for index, task in enumerate(tasks):
         field = f"tasks[{index}]"
@@ -210,13 +210,15 @@ def validate_schedule_file(path: Path, run_dir: Path, issues: list[Issue]) -> No
         elif task_id in seen:
             issue(issues, "error", path, run_dir, f"{field}.task_id", "task_id is duplicated", task_id)
         seen.add(task_id)
+        if scheduled is not None and task_id:
+            scheduled.add(task_id)
         validate_enum(issues, path, run_dir, f"{field}.status", task.get("status"), SCHEDULE_STATUS)
         validate_enum(issues, path, run_dir, f"{field}.worker", task.get("worker"), WORKER)
         if "expected_outputs" in task and not isinstance(task.get("expected_outputs"), list):
             issue(issues, "warning", path, run_dir, f"{field}.expected_outputs", "expected_outputs should be a list")
 
 
-def validate_done_file(path: Path, run_dir: Path, issues: list[Issue], status_counts: dict[str, int]) -> None:
+def validate_done_file(path: Path, run_dir: Path, issues: list[Issue], status_counts: dict[str, int], marked: set[str] | None = None) -> None:
     data = load_yaml(path, run_dir, issues)
     if data is None:
         status_counts["other"] += 1
@@ -225,6 +227,10 @@ def validate_done_file(path: Path, run_dir: Path, issues: list[Issue], status_co
         issue(issues, "error", path, run_dir, "$", "done marker must be a mapping")
         status_counts["other"] += 1
         return
+    if marked is not None:
+        # Filename is the fallback identity: task_id inside the marker is only
+        # a recommended field, but the filename is the run layout's contract.
+        marked.add(str(data.get("task_id") or path.stem).strip())
     status, aliased = normalized_status(data.get("status"))
     if status in DONE_STATUS:
         status_counts[status] += 1
@@ -237,6 +243,36 @@ def validate_done_file(path: Path, run_dir: Path, issues: list[Issue], status_co
         issue(issues, "warning", path, run_dir, "task_id", "done marker should include task_id")
     if "output_files" in data and not isinstance(data.get("output_files"), list):
         issue(issues, "warning", path, run_dir, "output_files", "output_files should be a list")
+
+
+def validate_reconciliation(run_dir: Path, issues: list[Issue], scheduled: set[str], marked: set[str]) -> None:
+    """Reconcile scheduled task ids against done markers.
+
+    The schedule says what should run; `done/` says what finished. When the two
+    sets diverge the run's completion becomes uncomputable, which is worse than
+    a known failure — nothing reports it and progress looks fine.
+
+    Two divergences, two causes:
+      * scheduled but unmarked — still running, or the worker died without
+        writing a marker (a dead worker cannot report its own death).
+      * marked but unscheduled — work ran outside the schedule, or the schedule
+        that contained it was overwritten by a later wave of the same phase.
+
+    Both are warnings, not errors: mid-run either can be legitimate. A run that
+    *finishes* with either is one whose completion nobody can verify.
+    """
+    if not scheduled and not marked:
+        return
+    unmarked = sorted(scheduled - marked)
+    orphaned = sorted(marked - scheduled)
+    if unmarked:
+        issue(issues, "warning", run_dir / "schedule", run_dir, "tasks",
+              f"{len(unmarked)} scheduled task(s) have no done marker",
+              ", ".join(unmarked[:10]) + (" ..." if len(unmarked) > 10 else ""))
+    if orphaned:
+        issue(issues, "warning", run_dir / "done", run_dir, "$",
+              f"{len(orphaned)} done marker(s) have no scheduled task",
+              ", ".join(orphaned[:10]) + (" ..." if len(orphaned) > 10 else ""))
 
 
 def validate_inventory_item(path: Path, run_dir: Path, issues: list[Issue], item: dict[str, Any], index: int) -> None:
@@ -376,13 +412,16 @@ def main() -> int:
             issue(issues, "error", run_dir / name, run_dir, "$", "required run directory is missing")
 
     validate_domain_map(run_dir, issues)
+    scheduled: set[str] = set()
     for path in yaml_files(run_dir / "schedule"):
-        if path.name != "domain-map.yaml":
-            validate_schedule_file(path, run_dir, issues)
+        validate_schedule_file(path, run_dir, issues, scheduled)
 
     status_counts = {"done": 0, "failed": 0, "other": 0}
+    marked: set[str] = set()
     for path in yaml_files(run_dir / "done"):
-        validate_done_file(path, run_dir, issues, status_counts)
+        validate_done_file(path, run_dir, issues, status_counts, marked)
+
+    validate_reconciliation(run_dir, issues, scheduled, marked)
 
     for path in yaml_files(run_dir / "inventory"):
         validate_inventory_file(path, run_dir, issues)

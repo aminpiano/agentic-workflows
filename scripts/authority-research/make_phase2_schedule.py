@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
+from _contract import next_schedule_path
 
 
 PHASES = {
@@ -116,7 +117,7 @@ def main() -> int:
         "assignment_policy": {"codex_direction": "ascending", "agy_direction": "descending", "codex_batch_size": 5, "agy_concurrency": 1},
         "tasks": tasks,
     }
-    out = args.out.expanduser().resolve() if args.out else run_dir / "schedule" / f"{args.phase}-schedule.yaml"
+    out = args.out.expanduser().resolve() if args.out else next_schedule_path(run_dir / "schedule", args.phase)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(yaml.safe_dump(schedule, allow_unicode=True, sort_keys=False, width=120), encoding="utf-8")
     print(yaml.safe_dump({"schedule_path": str(out), "phase": args.phase, "tasks": len(tasks), "input_groups": {key: len(value) for key, value in inputs.items()}}, allow_unicode=True, sort_keys=False).strip())

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from _contract import next_schedule_path
 
 
 PHASES = {
@@ -168,7 +169,7 @@ def main() -> int:
     with domain_map_path.open("r", encoding="utf-8") as f:
         domain_map = yaml.safe_load(f) or {}
     schedule = make_schedule(domain_map, run_dir, args.phase, args.codex_start, args.agy_start)
-    out = args.out.expanduser().resolve() if args.out else run_dir / "schedule" / f"{args.phase}-schedule.yaml"
+    out = args.out.expanduser().resolve() if args.out else next_schedule_path(run_dir / "schedule", args.phase)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(yaml.safe_dump(schedule, allow_unicode=True, sort_keys=False, width=120), encoding="utf-8")
     counts = {}

@@ -8,6 +8,8 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+from _contract import next_schedule_path
+
 
 CLASSIFIED_RE = re.compile(r"^cl(?P<suffix>[0-9]{3})-classification\.ya?ml$")
 
@@ -129,7 +131,7 @@ def main() -> int:
         raise SystemExit(f"run directory not found: {run_dir}")
     ensure_dirs(run_dir)
     tasks = discover_tasks(run_dir)
-    out_path = args.out.expanduser().resolve() if args.out else run_dir / "schedule" / f"{args.phase}-schedule.yaml"
+    out_path = args.out.expanduser().resolve() if args.out else next_schedule_path(run_dir / "schedule", args.phase)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     write_schedule(run_dir, args.phase, out_path, tasks)
     print(f"schedule_path: {out_path}")
