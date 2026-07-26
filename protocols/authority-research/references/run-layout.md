@@ -98,7 +98,7 @@ Update status only from done markers:
 
 ## Worker Prompt Files
 
-Use `scripts/authority-research/make_worker_prompt.py` to generate worker prompts under `prompts/`:
+Use `scripts/make_worker_prompt.py` to generate worker prompts under `prompts/`:
 
 ```text
 prompts/<task_id>-<contract>.prompt.md

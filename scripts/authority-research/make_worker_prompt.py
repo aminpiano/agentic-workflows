@@ -12,8 +12,8 @@ from typing import Any
 import yaml
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-CONTRACTS_PATH = REPO_ROOT / "protocols" / "authority-research" / "references" / "worker-contracts.md"
+SKILL_DIR = Path(__file__).resolve().parents[1]
+CONTRACTS_PATH = SKILL_DIR / "references" / "worker-contracts.md"
 
 CONTRACT_ALIASES = {
     "axis-discovery": "Axis Discovery (Bootstrap)",
@@ -51,7 +51,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--schedule", required=True, type=Path)
     parser.add_argument("--task-id", required=True)
     parser.add_argument("--contract", default=None, help="Worker contract name or alias. Defaults to schedule phase.")
-    parser.add_argument("--contracts-file", type=Path, default=None, help="Override worker contract markdown path.")
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument("--print", action="store_true", help="Print prompt after writing it.")
     return parser.parse_args()
@@ -101,8 +100,8 @@ def infer_contract(schedule: dict[str, Any], task: dict[str, Any], explicit: str
     raise SystemExit(f"cannot infer worker contract; pass --contract. phase={schedule.get('phase')!r} task_id={task_id!r}")
 
 
-def render_prompt(run_dir: Path, schedule_path: Path, schedule: dict[str, Any], task: dict[str, Any], contract_heading: str, contracts_path: Path) -> str:
-    contracts = contracts_path.read_text(encoding="utf-8")
+def render_prompt(run_dir: Path, schedule_path: Path, schedule: dict[str, Any], task: dict[str, Any], contract_heading: str) -> str:
+    contracts = CONTRACTS_PATH.read_text(encoding="utf-8")
     global_rules = section(contracts, "Global Rules")
     contract = section(contracts, contract_heading)
     task_yaml = yaml.safe_dump(task, allow_unicode=True, sort_keys=False, width=120).strip()
@@ -141,10 +140,7 @@ def main() -> int:
     schedule = load_schedule(schedule_path)
     task = find_task(schedule, args.task_id)
     contract_heading = infer_contract(schedule, task, args.contract)
-    contracts_path = args.contracts_file.expanduser().resolve() if args.contracts_file else CONTRACTS_PATH
-    if not contracts_path.exists():
-        raise SystemExit(f"worker contracts file not found: {contracts_path}")
-    prompt = render_prompt(run_dir, schedule_path, schedule, task, contract_heading, contracts_path)
+    prompt = render_prompt(run_dir, schedule_path, schedule, task, contract_heading)
     out = args.out.expanduser().resolve() if args.out else run_dir / "prompts" / f"{args.task_id}-{contract_heading.lower().replace(' ', '-').replace('(', '').replace(')', '')}.prompt.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(prompt, encoding="utf-8")

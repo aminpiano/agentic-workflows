@@ -9,33 +9,10 @@ from pathlib import Path
 
 import yaml
 
+from _contract import PHASE1_DIRS, STATUS_ALIASES
 
-STAGES = [
-    "inventory",
-    "profiles",
-    "schedule",
-    "raw",
-    "triaged",
-    "rejected",
-    "classified",
-    "verified",
-    "curation",
-    "claim-ledger",
-    "hallucination-audits",
-    "topic-packs",
-    "article-briefs",
-    "synthesis",
-    "dedup",
-    "drafted",
-    "done",
-    "logs",
-    "prompts",
-]
 
-DONE_STATUS_ALIASES = {
-    "completed": "done",
-    "complete": "done",
-}
+STAGES = list(PHASE1_DIRS)
 
 
 def parse_args() -> argparse.Namespace:
@@ -56,7 +33,7 @@ def measure_stage(path: Path) -> dict:
 
 def normalize_done_status(value: object) -> str:
     status = str(value or "other").strip().strip('"').strip("'").lower()
-    return DONE_STATUS_ALIASES.get(status, status)
+    return STATUS_ALIASES.get(status, status)
 
 
 def main() -> int:

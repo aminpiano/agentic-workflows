@@ -35,7 +35,7 @@ proposed_axes:
     promote_to_domain_map: yes | no | watch
 ```
 
-Keep promoted active axes to ~8 or fewer (start ~6, leave room for discovered ones). Contract: "Axis Discovery (Bootstrap)" in `worker-contracts.md`. The discovery + completeness-critic steps are cross-model multi-round; axis-budget enforcement and automated collection-reflux remain orchestrator-level responsibilities.
+Keep promoted active axes to ~8 or fewer (start ~6, leave room for discovered ones). Contract: "Axis Discovery (Bootstrap)" in `worker-contracts.md`. The discovery + completeness-critic steps are now cross-model multi-round (2026-06-08); axis-budget enforcement + automated collection-reflux remain deferred — see `authority-phase1-redesign.md` in the notes-astro seogo.
 
 ## File Location
 
@@ -96,7 +96,7 @@ axes:
 ## Convert To Schedule
 
 ```bash
-python3 scripts/authority-research/make_axis_schedule.py \
+python3 $AR_SKILL/scripts/make_axis_schedule.py \
   --domain-map <run_dir>/schedule/domain-map.yaml \
   --run-dir <run_dir> \
   --phase source-scout
@@ -119,7 +119,7 @@ The first pass should almost always be `source-scout`. Later phases can be gener
 Do not ask the main agent to read the materials. Use file counts and bytes per axis/task. After each phase:
 
 ```bash
-python3 scripts/authority-research/measure_run.py <run_dir>
+python3 $AR_SKILL/scripts/measure_run.py <run_dir>
 ```
 
 Then create the next schedule for weak or empty axes.

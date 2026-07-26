@@ -11,6 +11,10 @@ from typing import Any
 
 import yaml
 
+from _contract import PUBLIC_USE_ORDER, UNRECOGNIZED_PUBLIC_USE, VERDICT_ORDER
+
+UNRECOGNIZED = UNRECOGNIZED_PUBLIC_USE
+
 
 CLAIM_ID_RE = re.compile(r"\b[a-z]{1,4}\d{3}-c\d{3}\b", re.IGNORECASE)
 
@@ -61,17 +65,12 @@ def collect_axes(run_dir: Path) -> list[dict[str, str]]:
 
 
 def collect_audit_counts(run_dir: Path) -> dict[str, Any]:
-    counts = {
-        "total": 0,
-        "usable": 0,
-        "usable_with_caveat": 0,
-        "do_not_use": 0,
-        "SUPPORTED": 0,
-        "PARTIALLY_SUPPORTED": 0,
-        "UNSUPPORTED": 0,
-        "CONFLICT": 0,
-        "UNKNOWN": 0,
-    }
+    counts: dict[str, Any] = {"total": 0}
+    for key in PUBLIC_USE_ORDER:
+        counts[key] = 0
+    counts[UNRECOGNIZED] = 0
+    for key in VERDICT_ORDER:
+        counts[key] = 0
     blocked_ids: list[str] = []
     usable_ids: list[str] = []
     for path in sorted((run_dir / "hallucination-audits").glob("*.y*ml")):
@@ -82,10 +81,11 @@ def collect_audit_counts(run_dir: Path) -> dict[str, Any]:
             counts["total"] += 1
             verdict = str(claim.get("verdict") or "UNKNOWN")
             public_use = str(claim.get("public_use") or "do_not_use")
+            if public_use not in PUBLIC_USE_ORDER:
+                public_use = UNRECOGNIZED
             if verdict in counts:
                 counts[verdict] += 1
-            if public_use in counts:
-                counts[public_use] += 1
+            counts[public_use] += 1
             claim_id = str(claim.get("claim_id") or "")
             if public_use == "do_not_use":
                 blocked_ids.append(claim_id)

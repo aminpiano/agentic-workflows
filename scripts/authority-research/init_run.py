@@ -11,28 +11,10 @@ from pathlib import Path
 
 import yaml
 
+from _contract import PHASE1_DIRS
 
-SUBDIRS = [
-    "inventory",
-    "profiles",
-    "schedule",
-    "raw",
-    "triaged",
-    "rejected",
-    "classified",
-    "verified",
-    "curation",
-    "claim-ledger",
-    "hallucination-audits",
-    "topic-packs",
-    "article-briefs",
-    "synthesis",
-    "dedup",
-    "drafted",
-    "done",
-    "logs",
-    "prompts",
-]
+
+SUBDIRS = list(PHASE1_DIRS)
 
 
 def slugify(value: str) -> str:

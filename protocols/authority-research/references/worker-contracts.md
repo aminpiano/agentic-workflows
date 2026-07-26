@@ -13,6 +13,7 @@ Use these contracts when prompting Codex subagents or Antigravity one-shot worke
 - Keep quotes short.
 - Always write `done/<task_id>.yaml`.
 - Done marker `status` must be exactly `done` or `failed`.
+- **Enum fidelity**: when a schema field lists allowed values separated by `|` (for example `public_use: usable | usable_with_caveat | do_not_use`), use your judgment to decide *which* value applies, then emit it as the exact literal string shown — never a synonym, paraphrase, abbreviation, or your own wording. Do not, for instance, write `ok`, `ok_with_caveat`, or `do_not_use_as_evidence` when the allowed set is `usable | usable_with_caveat | do_not_use`. Downstream tooling matches these strings verbatim; an unrecognized value is surfaced as unrecognized, not reinterpreted.
 - Final response must be short: `task_id`, `status`, `done_path`.
 
 ## Axis Discovery (Bootstrap)
@@ -32,7 +33,7 @@ The worker drives the rounds itself via bash. It does NOT resume model threads (
     ```
   - agy (Gemini), via this skill's wrapper:
     ```bash
-    python3 scripts/authority-research/run_agy_once.py \
+    python3 $AR_SKILL/scripts/run_agy_once.py \
       --prompt-file <prompt-file> --out <out-file> --timeout 900
     ```
 - **R2 — adversarial cross-critique.** Merge R1 into one candidate list. Send it BACK to both models with the critic lens: *"Attack this axis list — what would a thorough authority KB be embarrassed to miss? Which axes are weak-evidence, redundant, or mis-scoped?"* Each model critiques the merged list, including the other model's contributions.
@@ -185,7 +186,7 @@ residual_risks:
 
 `conditional_pass` = log residual risks, do NOT trigger more scouting. `fail` = surface `delta_tasks` to the orchestrator for a domain-map patch + targeted re-scout.
 
-**Scope of this upgrade (be precise).** Only the *critic* is cross-model multi-round, so the **quality of gap detection** is higher. The **collection-side reflux** — auto-spawning re-scout workers for the named gaps — is STILL orchestrator/schedule-level, because a worker cannot launch collection workers: `delta_tasks` go into the schedule and the main agent re-runs scouting. Automated collection-reflux + axis-budget enforcement remain deferred.
+**Scope of this upgrade (be precise).** Only the *critic* is now cross-model multi-round, so the **quality of gap detection** is higher. The **collection-side reflux** — auto-spawning re-scout workers for the named gaps — is STILL orchestrator/schedule-level, because a worker cannot launch collection workers: `delta_tasks` go into the schedule and the main agent re-runs scouting. Automated collection-reflux + axis-budget enforcement remain deferred — see `authority-phase1-redesign.md` in the notes-astro seogo.
 
 ## Collector
 

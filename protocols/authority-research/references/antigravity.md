@@ -5,7 +5,7 @@
 Use the wrapper:
 
 ```bash
-python3 scripts/authority-research/run_agy_once.py \
+python3 $AR_SKILL/scripts/run_agy_once.py \
   --prompt-file <prompt.txt> \
   --out <result.txt> \
   --timeout 900
@@ -23,10 +23,12 @@ It writes stdout to `--out`, stderr to `<out>.stderr.log`, and exits non-zero if
 - stdout starts with `Error:`
 - the subprocess times out
 
-## Requirements
+## Local Facts
 
-- `agy` must be available on `PATH`.
-- The wrapper expects `agy --print`, `--print-timeout`, `--sandbox`, and `--add-dir`.
+- Binary found at `/home/s-office/.local/bin/agy`.
+- `agy --help` supports `--print`, `--print-timeout`, `--sandbox`, `--add-dir`, `--continue`, `--conversation`, `plugin`, `update`, and `install`.
+- Local Antigravity settings are under `~/.gemini/antigravity-cli/`.
+- Current local setting observed during setup: `Gemini 3.5 Flash (High)`.
 
 ## When To Use Agy
 

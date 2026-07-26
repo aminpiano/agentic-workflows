@@ -10,9 +10,12 @@ from typing import Any
 
 import yaml
 
+from _contract import PUBLIC_USE_ORDER, UNRECOGNIZED_PUBLIC_USE, VERDICT_ORDER
 
-PUBLIC_BUCKETS = ["usable", "usable_with_caveat", "do_not_use"]
-VERDICTS = ["SUPPORTED", "PARTIALLY_SUPPORTED", "UNSUPPORTED", "CONFLICT", "UNKNOWN"]
+
+PUBLIC_BUCKETS = list(PUBLIC_USE_ORDER)
+VERDICTS = list(VERDICT_ORDER)
+UNRECOGNIZED = UNRECOGNIZED_PUBLIC_USE
 
 
 def parse_args() -> argparse.Namespace:
@@ -55,7 +58,7 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
     lines.append("")
     lines.append("## Publication Buckets")
     lines.append("")
-    for bucket in PUBLIC_BUCKETS:
+    for bucket in [*PUBLIC_BUCKETS, UNRECOGNIZED]:
         claims = report["claims_by_public_use"].get(bucket, [])
         lines.append(f"### {bucket} ({len(claims)})")
         lines.append("")
@@ -78,7 +81,7 @@ def main() -> int:
     if not audit_dir.exists():
         raise SystemExit(f"hallucination-audits directory not found: {audit_dir}")
 
-    claims_by_public_use: dict[str, list[dict[str, Any]]] = {key: [] for key in PUBLIC_BUCKETS}
+    claims_by_public_use: dict[str, list[dict[str, Any]]] = {key: [] for key in [*PUBLIC_BUCKETS, UNRECOGNIZED]}
     counts_by_verdict = {key: 0 for key in VERDICTS}
     invalid_claims: list[dict[str, Any]] = []
     audit_files = sorted(p for p in audit_dir.glob("*.y*ml") if p.is_file())
@@ -94,9 +97,9 @@ def main() -> int:
             else:
                 counts_by_verdict["UNKNOWN"] += 1
             compact = compact_claim(claim, audit_file, run_dir)
-            if public_use not in claims_by_public_use:
-                public_use = "do_not_use"
-                compact["gate_note"] = "unknown public_use normalized to do_not_use"
+            if public_use not in PUBLIC_USE_ORDER:
+                compact["gate_note"] = f"public_use '{public_use}' is outside the controlled vocabulary; needs normalization"
+                public_use = UNRECOGNIZED
             if verdict in {"UNSUPPORTED", "CONFLICT", "UNKNOWN"} and public_use != "do_not_use":
                 invalid_claims.append(compact)
             claims_by_public_use[public_use].append(compact)
@@ -107,6 +110,7 @@ def main() -> int:
         "usable": len(claims_by_public_use["usable"]),
         "usable_with_caveat": len(claims_by_public_use["usable_with_caveat"]),
         "do_not_use": len(claims_by_public_use["do_not_use"]),
+        "unrecognized_public_use": len(claims_by_public_use[UNRECOGNIZED]),
         "invalid_public_use": len(invalid_claims),
     }
     report = {

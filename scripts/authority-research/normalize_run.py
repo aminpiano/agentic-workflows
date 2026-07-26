@@ -9,8 +9,19 @@ from typing import Any
 
 import yaml
 
+from _contract import (
+    ACCESS_METHOD as _C_ACCESS_METHOD,
+    LIKELY_VALUE,
+    PREFERRED_ACTION as _C_PREFERRED_ACTION,
+    SOURCE_ROLE as _C_SOURCE_ROLE,
+    SOURCE_SCALE as _C_SOURCE_SCALE,
+    TEMPORAL_POSITION,
+    TOPIC_RELATION as _C_TOPIC_RELATION,
+    TRUST_ALIASES,
+)
 
-TRUST = {"s": "S", "a": "A", "a-": "A", "a+": "A", "b": "B", "b+": "B", "b-": "B", "c": "C", "d": "D", "unknown": "UNKNOWN"}
+
+TRUST = TRUST_ALIASES
 LIKELY = {"high": "high", "medium": "medium", "low": "low"}
 TEMPORAL = {
     "current": "current",
@@ -80,6 +91,24 @@ ACCESS_METHOD = {
     "unknown": "unknown",
     "direct_html": "manual_web",
 }
+
+
+def _check_contract_alignment() -> None:
+    """Fail fast at import if a local alias maps to a value the contract rejects.
+
+    The free-text alias tables above stay local (run-specific data cleanup),
+    but every canonical target they map TO must be a contract-approved value.
+    """
+    assert set(LIKELY.values()) <= LIKELY_VALUE, "LIKELY target outside contract LIKELY_VALUE"
+    assert set(TEMPORAL.values()) <= TEMPORAL_POSITION, "TEMPORAL target outside contract TEMPORAL_POSITION"
+    assert set(TOPIC_RELATION.values()) <= _C_TOPIC_RELATION, "TOPIC_RELATION target outside contract"
+    assert set(SOURCE_SCALE.values()) <= _C_SOURCE_SCALE, "SOURCE_SCALE target outside contract"
+    assert set(SOURCE_ROLE.values()) <= _C_SOURCE_ROLE, "SOURCE_ROLE target outside contract"
+    assert set(PREFERRED_ACTION.values()) <= _C_PREFERRED_ACTION, "PREFERRED_ACTION target outside contract"
+    assert set(ACCESS_METHOD.values()) <= _C_ACCESS_METHOD, "ACCESS_METHOD target outside contract"
+
+
+_check_contract_alignment()
 
 
 def parse_args() -> argparse.Namespace:

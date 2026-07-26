@@ -12,53 +12,42 @@ from typing import Any
 
 import yaml
 
+from _contract import (
+    ACCESS_METHOD,
+    ACCESS_METHOD_ALIASES,
+    AXIS_WORKER,
+    DERIVATIVE_RISK,
+    DONE_STATUS,
+    INFO_ANGLE,
+    LIKELY_VALUE,
+    PARSE_FEASIBILITY,
+    PHASE1_DIRS,
+    PREFERRED_ACTION,
+    PREFERRED_ACTION_ALIASES,
+    PRIORITY,
+    PUBLIC_USE,
+    RECOMMENDED_WORKER,
+    SCHEDULE_STATUS,
+    SOURCE_ROLE,
+    SOURCE_SCALE,
+    STATUS_ALIASES,
+    TEMPORAL_POSITION,
+    TOPIC_RELATION,
+    TRUST_GRADE,
+    VERDICT,
+    WORKER,
+)
 
-REQUIRED_DIRS = [
-    "inventory",
-    "profiles",
-    "schedule",
-    "raw",
-    "triaged",
-    "rejected",
-    "classified",
-    "verified",
-    "curation",
-    "claim-ledger",
-    "hallucination-audits",
-    "topic-packs",
-    "article-briefs",
-    "synthesis",
-    "dedup",
-    "done",
-    "logs",
-    "prompts",
-]
 
-DONE_STATUS = {"done", "failed"}
-DONE_STATUS_ALIASES = {"completed": "done", "complete": "done"}
-SCHEDULE_STATUS = {"pending", "running", "done", "failed", "skipped"}
-WORKER = {"codex", "agy", "either", "codex-subagent", "claude-agent", "workflow"}
-PRIORITY = {"critical", "high", "medium", "low"}
-LIKELY_VALUE = {"high", "medium", "low"}
-TRUST_GRADE = {"S", "A", "B", "C", "D", "UNKNOWN"}
-INFO_ANGLE = {
-    "origin_primary",
-    "academic_evidence",
-    "implementation_artifact",
-    "practitioner_ops",
-    "comparative_industry",
-    "critical_risk",
-}
-TEMPORAL_POSITION = {"foundational", "current", "frontier", "deprecated", "UNKNOWN"}
-TOPIC_RELATION = {"core", "adjacent", "historical", "counterframe"}
-SOURCE_SCALE = {"point", "collection", "mega"}
-SOURCE_ROLE = {"primary", "secondary", "derivative", "index"}
-DERIVATIVE_RISK = {"low", "medium", "high"}
-PREFERRED_ACTION = {"profile", "expand_children", "use_as_index_only", "skip", "collect"}
-PARSE_FEASIBILITY = {"easy", "medium", "hard", "unknown"}
-RECOMMENDED_WORKER = {"codex", "agy", "either", "collector"}
-VERDICT = {"SUPPORTED", "PARTIALLY_SUPPORTED", "UNSUPPORTED", "CONFLICT", "UNKNOWN"}
-PUBLIC_USE = {"usable", "usable_with_caveat", "do_not_use"}
+# Phase-1 directories must exist. `drafted` stays optional output (historical
+# policy), so it is excluded from the required set even though the canonical
+# layout in _contract includes it.
+REQUIRED_DIRS = [d for d in PHASE1_DIRS if d != "drafted"]
+
+# A run may be validated before normalize_run.py collapses aliases, so the
+# validator accepts canonical values OR known alias keys as input.
+PREFERRED_ACTION_INPUT = PREFERRED_ACTION | set(PREFERRED_ACTION_ALIASES)
+ACCESS_METHOD_INPUT = ACCESS_METHOD | set(ACCESS_METHOD_ALIASES)
 
 
 @dataclass
@@ -134,8 +123,8 @@ def normalized_status(value: Any) -> tuple[str, bool]:
     raw = normalized_lower(value)
     if raw in DONE_STATUS:
         return raw, False
-    if raw in DONE_STATUS_ALIASES:
-        return DONE_STATUS_ALIASES[raw], True
+    if raw in STATUS_ALIASES:
+        return STATUS_ALIASES[raw], True
     return raw or "UNKNOWN", False
 
 
@@ -193,7 +182,7 @@ def validate_domain_map(run_dir: Path, issues: list[Issue]) -> None:
         if not axis.get("scope"):
             issue(issues, "warning", path, run_dir, f"{field}.scope", "axis scope is missing")
         validate_enum(issues, path, run_dir, f"{field}.priority", axis.get("priority"), PRIORITY)
-        validate_enum(issues, path, run_dir, f"{field}.preferred_worker", axis.get("preferred_worker"), {"codex", "agy", "either"})
+        validate_enum(issues, path, run_dir, f"{field}.preferred_worker", axis.get("preferred_worker"), AXIS_WORKER)
 
 
 def validate_schedule_file(path: Path, run_dir: Path, issues: list[Issue]) -> None:
@@ -263,7 +252,7 @@ def validate_inventory_item(path: Path, run_dir: Path, issues: list[Issue], item
     validate_enum(issues, path, run_dir, f"{base}.source_scale", item.get("source_scale"), SOURCE_SCALE)
     validate_enum(issues, path, run_dir, f"{base}.source_role", item.get("source_role"), SOURCE_ROLE)
     validate_enum(issues, path, run_dir, f"{base}.derivative_risk", item.get("derivative_risk"), DERIVATIVE_RISK)
-    validate_enum(issues, path, run_dir, f"{base}.preferred_action", item.get("preferred_action"), PREFERRED_ACTION)
+    validate_enum(issues, path, run_dir, f"{base}.preferred_action", item.get("preferred_action"), PREFERRED_ACTION_INPUT)
 
 
 def validate_inventory_file(path: Path, run_dir: Path, issues: list[Issue]) -> None:
@@ -293,7 +282,7 @@ def validate_profile_file(path: Path, run_dir: Path, issues: list[Issue]) -> Non
             issue(issues, "warning", path, run_dir, f"[{index}]", "profile item should be a mapping")
             continue
         base = f"[{index}]"
-        validate_enum(issues, path, run_dir, f"{base}.access_method", item.get("access_method"), {"search", "sitemap", "rss", "list_pages", "site_search", "manual_web", "api", "unknown", "direct_html"})
+        validate_enum(issues, path, run_dir, f"{base}.access_method", item.get("access_method"), ACCESS_METHOD_INPUT)
         validate_enum(issues, path, run_dir, f"{base}.parse_feasibility", item.get("parse_feasibility"), PARSE_FEASIBILITY)
         validate_enum(issues, path, run_dir, f"{base}.recommended_worker", item.get("recommended_worker"), RECOMMENDED_WORKER)
 

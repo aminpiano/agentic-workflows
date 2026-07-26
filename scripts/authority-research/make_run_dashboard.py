@@ -13,7 +13,6 @@ import yaml
 STAGES = [
     "inventory",
     "profiles",
-    "schedule",
     "raw",
     "triaged",
     "rejected",
@@ -28,7 +27,6 @@ STAGES = [
     "dedup",
     "done",
     "logs",
-    "prompts",
 ]
 
 

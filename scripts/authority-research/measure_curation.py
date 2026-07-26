@@ -6,32 +6,10 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from _contract import ALL_DIRS, STATUS_ALIASES
 
-STAGES = [
-    "inventory",
-    "profiles",
-    "raw",
-    "triaged",
-    "rejected",
-    "classified",
-    "verified",
-    "curation",
-    "claim-ledger",
-    "hallucination-audits",
-    "topic-packs",
-    "article-briefs",
-    "dedup",
-    "drafted",
-    "schedule",
-    "done",
-    "logs",
-    "prompts",
-]
 
-DONE_STATUS_ALIASES = {
-    "completed": "done",
-    "complete": "done",
-}
+STAGES = list(ALL_DIRS)
 
 
 def parse_args() -> argparse.Namespace:
@@ -58,7 +36,7 @@ def done_status(done_dir: Path) -> dict[str, int]:
             stripped = line.strip()
             if stripped.startswith("status:"):
                 raw = stripped.split(":", 1)[1].split("#", 1)[0].strip().strip('"').strip("'")
-                normalized = DONE_STATUS_ALIASES.get(raw.lower(), raw.lower())
+                normalized = STATUS_ALIASES.get(raw.lower(), raw.lower())
                 if normalized in counts:
                     status = normalized
                 break
