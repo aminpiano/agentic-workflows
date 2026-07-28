@@ -325,10 +325,37 @@ schedule_status:
 validation: {}
 public_material_gate: {}
 synthesis_quality: {}
-next_actions: []
+blocked: false          # true if any next_action is blocking
+next_actions:
+  - action: spawn_workers        # run_script | spawn_workers | inspect | halt | ready
+    reason: schedule_tasks_pending   # machine-stable cause code
+    blocking: false              # must this clear before downstream synthesis?
+    detail: "24 scheduled task(s) unfinished; assign workers from the schedule."
+    count: 24
+  - action: run_script
+    reason: public_gate_missing
+    blocking: false
+    detail: "Run make_public_material_gate.py after hallucination audits."
+    script: make_public_material_gate.py
 ```
 
 Keep this file current at phase boundaries and before handoff. It is the main-agent dashboard for resuming without reading raw or curated source bodies.
+
+### next_actions is data, not prose
+
+Branch on `action` and `reason`; never pattern-match the `detail` sentence — it
+is written for humans and its wording is free to change. `blocked` is the one
+field an automated loop needs before reading anything else: true means a gate
+failed and downstream synthesis must not proceed.
+
+The vocabulary is fixed in `_contract.NEXT_ACTION` / `NEXT_ACTION_REASON`, so
+any executor consumes the same set: a Claude Code workflow, a Codex loop, a
+shell script, or a person reading the YAML. What to do next is decided here;
+how to do it belongs to that executor.
+
+The dashboard never raises on a malformed artifact — it records the file and
+emits an `unparsable_files` action instead. A run whose files are broken is
+precisely when its status must still be readable.
 
 ## Synthesis Quality Report
 

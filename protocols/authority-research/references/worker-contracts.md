@@ -18,7 +18,7 @@ Use these contracts when prompting Codex subagents or Antigravity one-shot worke
 
 ## Axis Discovery (Bootstrap)
 
-Added 2026-05-31 (deliberated MVP). **Upgraded 2026-06-08 to cross-model multi-round convergence** — the deliberate skill's pattern (divergence → adversarial critique → convergence) is absorbed directly into this contract; the deliberate skill is NOT called (self-contained). Run BEFORE Source Scout when the topic is broad. Run this worker on **Opus** — it is a synthesis/judgment task, not extraction.
+Added 2026-05-31 (deliberated MVP). **Upgraded 2026-06-08 to cross-model multi-round convergence** — the deliberate skill's pattern (divergence → adversarial critique → convergence) is absorbed directly into this contract; the deliberate skill is NOT called (self-contained). Run BEFORE Source Scout when the topic is broad. Run this worker on the **judgment tier** (see "Worker tiers" in SKILL.md) — it is a synthesis/judgment task, not extraction.
 
 Goal: discover candidate axes before the domain map is hand-written, to counter the funnel ceiling — the orchestrator's prior knowledge bounds everything downstream. A single model's prior is itself a ceiling, so this worker runs its own internal cross-model rounds and converges, instead of emitting one pass.
 
@@ -27,10 +27,11 @@ Goal: discover candidate axes before the domain map is hand-written, to counter 
 The worker drives the rounds itself via bash. It does NOT resume model threads (no session_id juggling, no checkpoints): each round re-sends the compact axis list as plain text. The axis context is small, so stateless rounds are enough. Keep total rounds ≤ 3.
 
 - **R1 — divergence (parallel, cross-model).** Send the SAME discovery prompt independently to two different-vendor models and collect both axis lists. Cover all four lenses (below) across the two models.
-  - codex (GPT):
+  - codex (GPT) — judgment tier here; use `-p ar-extraction` for extraction-tier workers:
     ```bash
-    codex exec -p gpt -s read-only --skip-git-repo-check -C "$HOME" "$(cat <prompt-file>)"
+    codex exec -p ar-judgment --skip-git-repo-check -C "$HOME" "$(cat <prompt-file>)"
     ```
+    Profiles live in `~/.codex/<name>.config.toml` (sandbox and web-search settings are already in the profile, so `-s` is not needed). **Verify one launch by hand before fanning out** — a wrong flag or a missing profile costs the entire fan-out, not one worker. Two known traps: `--search` is a top-level option (`codex --search exec ...`, not `codex exec --search`), and a legacy `[profiles.X]` table in `config.toml` makes `-p X` fail outright on current CLI versions.
   - agy (Gemini), via this skill's wrapper:
     ```bash
     python3 $AR_SKILL/scripts/run_agy_once.py \
@@ -39,7 +40,7 @@ The worker drives the rounds itself via bash. It does NOT resume model threads (
 - **R2 — adversarial cross-critique.** Merge R1 into one candidate list. Send it BACK to both models with the critic lens: *"Attack this axis list — what would a thorough authority KB be embarrassed to miss? Which axes are weak-evidence, redundant, or mis-scoped?"* Each model critiques the merged list, including the other model's contributions.
 - **R3 — converge (only if R2 surfaced new evidence-backed axes).** One targeted pass on the disputed axes. Stop earlier the moment a round adds zero new evidence-backed axes (convergence).
 
-The worker (Opus) does the final synthesis itself: dedup, drop non-evidence-backed brainstorm, reconcile cross-model disagreement, and write the file.
+The worker (judgment tier) does the final synthesis itself: dedup, drop non-evidence-backed brainstorm, reconcile cross-model disagreement, and write the file.
 
 Lenses (covered across the rounds/models above):
 
@@ -141,7 +142,7 @@ Profiler rules:
 
 ## Completeness Critic
 
-Added 2026-05-31 (deliberated MVP). **Upgraded 2026-06-08: the critic step is now cross-model multi-round** (deliberate pattern absorbed, skill not called). Run once after scouting/profiling, before heavy collection. Run on **Opus**.
+Added 2026-05-31 (deliberated MVP). **Upgraded 2026-06-08: the critic step is now cross-model multi-round** (deliberate pattern absorbed, skill not called). Run once after scouting/profiling, before heavy collection. Run on the **judgment tier**.
 
 Goal: adversarially find what the inventory MISSED. Not a positive summarizer — a skeptic that attacks gaps.
 
@@ -152,7 +153,7 @@ A single critic shares blind spots with the scout that built the inventory — i
 ### Internal rounds (encapsulated — no thread resume, re-send the metadata bundle as text each round, max 3)
 
 - **R1 — parallel independent critique.** Hand the SAME metadata bundle to codex and agy; each writes its own gap verdict (missing axes / angles / perspective / time / terminology). Use the codex / agy bash patterns from **Axis Discovery** above.
-- **R2 — reconcile disagreement.** Where the two critics disagree (one flags a gap, the other passes), re-attack only those contested points. Both flag it = strong signal. They split = the worker (Opus) adjudicates on evidence, not on majority.
+- **R2 — reconcile disagreement.** Where the two critics disagree (one flags a gap, the other passes), re-attack only those contested points. Both flag it = strong signal. They split = the worker (judgment tier) adjudicates on evidence, not on majority.
 - Stop at R2 unless a contested gap is still unresolved.
 
 Input (metadata only — never raw bodies): domain-map, candidate-axes, inventory summary (per item: source_name / url / information_angle / source_scale / source_role / trust), profiles summary.

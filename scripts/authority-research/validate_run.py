@@ -275,6 +275,37 @@ def validate_reconciliation(run_dir: Path, issues: list[Issue], scheduled: set[s
               ", ".join(orphaned[:10]) + (" ..." if len(orphaned) > 10 else ""))
 
 
+FRICTION_LOG = "skill-improvement-failures.md"
+
+
+def validate_friction_log(run_dir: Path, issues: list[Issue]) -> None:
+    """Every run must leave skill-improvement memory behind — including clean runs.
+
+    Before 2026-07-28 this rule lived only in prose and nothing checked it, so 28 of
+    31 runs skipped it silently and the four that complied each invented their own
+    filename. Skipping is only expensive if something notices.
+    """
+    logs = run_dir / "logs"
+    target = logs / FRICTION_LOG
+    if not target.exists():
+        legacy = sorted(p.name for p in logs.glob("*failures*.md")) if logs.is_dir() else []
+        message = (
+            f"friction log is missing; every run must write logs/{FRICTION_LOG} "
+            "(append 'no friction observed' when the run was clean)"
+        )
+        if legacy:
+            message += f"; found legacy filename(s) instead: {', '.join(legacy)} — rename to the fixed name"
+        issue(issues, "warning", target, run_dir, "$", message)
+        return
+    try:
+        body = target.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:  # noqa: BLE001 - unreadable log is a finding, not a crash
+        issue(issues, "warning", target, run_dir, "$", f"friction log could not be read: {exc}")
+        return
+    if not body.strip():
+        issue(issues, "warning", target, run_dir, "$", "friction log exists but is empty; record at least one line")
+
+
 def validate_inventory_item(path: Path, run_dir: Path, issues: list[Issue], item: dict[str, Any], index: int) -> None:
     base = f"[{index}]"
     for required in ["source_name", "source_url"]:
@@ -422,6 +453,7 @@ def main() -> int:
         validate_done_file(path, run_dir, issues, status_counts, marked)
 
     validate_reconciliation(run_dir, issues, scheduled, marked)
+    validate_friction_log(run_dir, issues)
 
     for path in yaml_files(run_dir / "inventory"):
         validate_inventory_file(path, run_dir, issues)

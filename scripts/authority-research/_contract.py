@@ -156,6 +156,56 @@ def next_schedule_path(schedule_dir: Path, phase: str) -> Path:
         wave += 1
 
 
+# ── next actions ────────────────────────────────────────────────────────────
+# The dashboard's answer to "what happens next", emitted as data rather than
+# prose so a runtime can branch on it. Any executor — a Claude Code workflow,
+# a Codex loop, a shell script, or a human reading the YAML — consumes the
+# same vocabulary; the decision of WHAT to do next lives here, the decision of
+# HOW to do it lives in that runtime.
+#
+# Deterministic by construction: every action is derived from file counts and
+# report fields. Nothing here reads research content or judges quality.
+NEXT_ACTION = frozenset({
+    "run_script",     # a named script in this skill should be run
+    "spawn_workers",  # scheduled tasks have no done marker yet
+    "inspect",        # something needs a human/agent to look at it
+    "halt",           # a blocking gate failed; do not continue downstream
+    "ready",          # no outstanding action — run may proceed to synthesis
+})
+# Machine-stable cause codes. Prose lives in each action's `detail`; matching
+# should be done on `reason`, never on the sentence.
+NEXT_ACTION_REASON = frozenset({
+    "validation_errors",
+    "validation_warnings",
+    "schedule_tasks_pending",
+    "schedule_tasks_failed",
+    "done_markers_failed",
+    "public_gate_missing",
+    "public_gate_invalid",
+    "synthesis_report_missing",
+    "synthesis_failed",
+    "synthesis_warnings",
+    "unparsable_files",
+    "all_gates_passed",
+})
+
+
+def next_action(action: str, reason: str, detail: str, blocking: bool = False, **extra: Any) -> dict[str, Any]:
+    """Build one structured next-action record.
+
+    `blocking` marks gates that must be cleared before downstream synthesis —
+    it is the single field an automated loop needs in order to decide whether
+    to stop, so it is set here rather than re-derived by each consumer.
+    """
+    if action not in NEXT_ACTION:
+        raise ValueError(f"unknown next action: {action}")
+    if reason not in NEXT_ACTION_REASON:
+        raise ValueError(f"unknown next-action reason: {reason}")
+    record: dict[str, Any] = {"action": action, "reason": reason, "blocking": blocking, "detail": detail}
+    record.update(extra)
+    return record
+
+
 # ── helpers ─────────────────────────────────────────────────────────────────
 def normalize_status(value: Any) -> Any:
     """Map a status alias (completed/complete) to its canonical form.
